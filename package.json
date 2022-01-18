@@ -7,7 +7,8 @@
     "node": "14.17.1"
   },
   "scripts": {
-    "sampleBot": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=sampleBot --ENCYRPT_SECRET=secret --ENCRYPT_SALT=salt",
+    "sampleBot-dev": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=development --ENCYRPT_SECRET=secret --ENCRYPT_SALT=salt",
+    "sampleBot-fuji": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=fuji --ENCYRPT_SECRET=secret --ENCRYPT_SALT=salt",
     "prepare": "node prepare.js"
   },
   "dependencies": {

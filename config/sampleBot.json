@@ -1,7 +1,0 @@
-{
-  "API_URL2" : "https://api.dexalot-test.com/api/",
-  "CHAIN_INSTANCE2": "https://node.dexalot-test.com/ext/bc/C/rpc",
-  "API_URL" : "https://api.dexalot-dev.com/api/",
-  "CHAIN_INSTANCE": "https://node.dexalot-dev.com/ext/bc/C/rpc",
-  "CHAIN_ID" : "43113"
-}

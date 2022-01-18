@@ -1,0 +1,9 @@
+# dependencies
+/node_modules
+/dist-js
+/logs
+*.zip
+Procfile
+.env.*
+package-lock.json
+/logs-*
