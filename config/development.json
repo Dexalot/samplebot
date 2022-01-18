@@ -1,5 +1,6 @@
 {
   "API_URL" : "https://api.dexalot-dev.com/api/",
   "CHAIN_INSTANCE": "https://node.dexalot-dev.com/ext/bc/C/rpc",
-  "CHAIN_ID" : "43112"
+  "CHAIN_ID" : "43112",
+  "DOMAIN_LINK" : "https://app.dexalot-dev.com"
 }

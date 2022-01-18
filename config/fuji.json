@@ -1,5 +1,6 @@
 {
   "API_URL" : "https://api.dexalot-test.com/api/",
-  "CHAIN_INSTANCE": "https://node.dexalot-test.com/ext/bc/C/rpc",
-  "CHAIN_ID" : "43113"
+  "CHAIN_INSTANCE": "https://api.avax-test.network/ext/bc/C/rpc",
+  "CHAIN_ID" : "43113",
+  "DOMAIN_LINK" : "https://app.dexalot-test.com"
 }

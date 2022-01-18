@@ -81,6 +81,9 @@ abstract class AbstractBot {
       this.account = wal.address;
       this.orders =  new Map();
       this.orderbook = new OrderBook();
+
+      (axios.defaults.headers! as unknown as Record<string, any>).common['Origin'] = getConfig('DOMAIN_LINK');
+
   }
 
   async getPairs() {

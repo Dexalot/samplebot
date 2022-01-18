@@ -37,7 +37,8 @@ nconf
     "NODE_ENV_SETTINGS",
     "CHAIN_INSTANCE",
     "CHAIN_ID",
-    "API_URL"
+    "API_URL",
+    "DOMAIN_LINK"
   ]);
 
 export const DEXALOT_ENV = {
