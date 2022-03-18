@@ -51,7 +51,7 @@ class Orderbook {
   }
 
   bidSize() {
-    return this._bids.size;
+    return this.state().bids.length;
   }
   worstbid() {
     return this._bids.min();
@@ -66,7 +66,7 @@ class Orderbook {
   }
 
   askSize() {
-    return this._asks.size;
+    return this.state().asks.length;
   }
 
   add(order) {

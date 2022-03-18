@@ -26,7 +26,7 @@ class SampleBot extends AbstractBot{
       this.interval =  10000 //Min 10 seconds
 
       this.minTradeAmnt = this.pairObject.mintrade_amnt * 1.1 ;
-      this.maxTradeAmnt = this.pairObject.mintrade_amnt * 5; 
+      this.maxTradeAmnt = this.pairObject.mintrade_amnt * 5;
 
       // PNL  TO KEEP TRACK OF PNL , FEE & TCOST  etc
       //this.PNL = new PNL(getConfig('NODE_ENV_SETTINGS'), this.instanceName, this.base, this.quote, this.config, this.account);
@@ -118,38 +118,45 @@ class SampleBot extends AbstractBot{
       try {
         // this.setMarketPrice(PriceService.prices[this.priceSymbolPair.pair]);
         // this.baseUsd = PriceService.prices[this.priceSymbolPair.base];
-        // this.quoteUsd = PriceService.prices[this.priceSymbolPair.quote];       
+        // this.quoteUsd = PriceService.prices[this.priceSymbolPair.quote];
       } catch (error:any) {
         this.logger.error (`${this.instanceName} Error during getNewMarketPrice`, error);
-      } 
+      }
     return this.marketPrice;
   }
 
-  setMarketPrice(price:string) {
+  setMarketPrice(price:number) {
     this.marketPrice = new BigNumber(price);
   }
 
   async getAvaxPrice (): Promise<number> {
     var avaxprice = 0;
     try {
-     avaxprice = 95; // FIXME 
+     avaxprice = 95; // FIXME
     } catch (error) {
       this.logger.error (`${this.instanceName} Error during getAvaxPrice`, error);
-    } 
+    }
     return avaxprice;
    }
 
-  getBaseCapital (): number {
-    return parseFloat((this.capitalASideUSD / this.baseUsd).toFixed(this.baseDisplayDecimals));
+  getBaseCapital () : number {
+    if (this.baseUsd) {
+      return parseFloat((this.capitalASideUSD / this.baseUsd).toFixed(this.baseDisplayDecimals));
+    } else {
+      return this.initialDepositBase;
+    }
   }
 
-  getQuoteCapital (): number  {
-    return parseFloat((this.capitalASideUSD / this.quoteUsd).toFixed(this.quoteDisplayDecimals));
+  getQuoteCapital (): number {
+    if (this.quoteUsd) {
+      return parseFloat((this.capitalASideUSD / this.quoteUsd).toFixed(this.quoteDisplayDecimals));
+    } else {
+      return this.initialDepositQuote;
+    }
   }
 
- 
+
 
 }
 
 export default SampleBot;
-

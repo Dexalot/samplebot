@@ -33,7 +33,7 @@ abstract class AbstractBot {
   protected orderCount:number =0;
   protected localnonce:number =0;
   protected config:any
-  protected portfolio:any 
+  protected portfolio:any
   protected pairObject: any | undefined;
   protected tradePairByte32: string | undefined;
   protected basecontract: any| undefined;
@@ -65,8 +65,11 @@ abstract class AbstractBot {
   protected orderUptader: NodeJS.Timeout | undefined;
   protected rebalancePct= 0.9;
   protected portfolioRebalanceAtStart= "N";
-
+  protected lastExecution:any;
   protected PNL:any; // Needs to be implemented
+  protected initialDepositBase = 50000;
+  protected initialDepositQuote= 10000;
+
 
   constructor(botId:number, pairStr: string, privateKey: string) {
       this.logger = getLogger("Bot");
@@ -106,7 +109,7 @@ abstract class AbstractBot {
   async initialize () : Promise<boolean> {
     if (!this.initialized) {
       this.config = (await this.getBotConfig());
-      this.pairObject = await this.getPairs();     
+      this.pairObject = await this.getPairs();
       if(this.pairObject) {
 
         this.logger.info (`${this.instanceName} Base Class Initialize`);
@@ -119,7 +122,7 @@ abstract class AbstractBot {
 
         // get Portfolio contract reference
         let portfolioAddr = await exchange.getPortfolio();
-        deployment = await this.getDeployment(dt.Portfolio); 
+        deployment = await this.getDeployment(dt.Portfolio);
         this.portfolio = new ethers.Contract(portfolioAddr, deployment.abi.abi, this.wallet);
 
         let tradePairAbi:any = await this.getDeployment(dt.TradePairs);
@@ -130,7 +133,7 @@ abstract class AbstractBot {
         this.quoteDecimals = this.pairObject.quote_evmdecimals;
 
         this.minTradeAmnt = this.pairObject.mintrade_amnt;
-        this.maxTradeAmnt = this.pairObject.mintrade_amnt; 
+        this.maxTradeAmnt = this.pairObject.mintrade_amnt;
         this.quoteDisplayDecimals = this.pairObject.quotedisplaydecimals;
         this.baseDisplayDecimals = this.pairObject.basedisplaydecimals;
 
@@ -157,14 +160,14 @@ abstract class AbstractBot {
             await this.cleanUpAndExit();
             });
 
-          process.on('exit', async() => { 
+          process.on('exit', async() => {
             await this.cleanUpAndExit();
           });
 
           process.on('SIGTERM', async() => { //Needed for AWS
             await this.cleanUpAndExit();
           });
-          
+
           process.on('uncaughtException', (error)  => {
               this.logger.error(`${this.instanceName} uncaughtException happened:`,  error);
           });
@@ -216,16 +219,16 @@ abstract class AbstractBot {
   async stop () {
     let savetoDb =this.status;
     this.logger.warn (`${this.instanceName} Stoppig bot...`);
-    this.status=false;  
+    this.status=false;
     if (this.orderUptader !== undefined) {
       clearTimeout(this.orderUptader);
     }
-    if (await this.getSettingValue('CANCEL_ALL_AT_STOP')==='Y') {
+    if (this.getSettingValue('CANCEL_ALL_AT_STOP')==='Y') {
       this.cancelAll().then(() => {
         this.logger.warn (`${this.instanceName} Waiting 5 seconds before removing order listeners"...`);
-          setTimeout(async () => {   
+          setTimeout(async () => {
             if (savetoDb) {
-              await this.saveBalancestoDb(false); 
+              await this.saveBalancestoDb(false);
             }
             if (this.PNL) {this.PNL.reset()};
             if (this.filter) { //Give 5 seconds before removing listeners
@@ -237,9 +240,9 @@ abstract class AbstractBot {
       });
     } else {
         this.logger.warn (`${this.instanceName} Waiting 5 seconds before removing order listeners"...`);
-        setTimeout(async () => {   
+        setTimeout(async () => {
             if (savetoDb) {
-              await this.saveBalancestoDb(false); 
+              await this.saveBalancestoDb(false);
             }
             if (this.PNL) {this.PNL.reset()};
             if (this.filter) { //Give 5 seconds before removing listeners
@@ -251,7 +254,7 @@ abstract class AbstractBot {
     }
   }
 
-  getSettingValue = async (settingname:string) => {
+  getSettingValue (settingname:string) {
     var settingIdx = this.config.findIndex((item: { setting_name: string; }) => item.setting_name === settingname);
     var settingVal;
 
@@ -268,16 +271,16 @@ abstract class AbstractBot {
   }
 
   abstract saveBalancestoDb (balancesRefreshed:boolean): Promise<void>;
-  abstract getPrice (side:number) : Promise<BigNumber>; 
-  abstract getAvaxPrice () : Promise<number>; 
+  abstract getPrice (side:number): Promise<BigNumber>;
+  abstract getAvaxPrice (): Promise<number>;
   // infinite loop that updates the order books periodically
   abstract startOrderUpdater (): Promise<void> ;
-  abstract getBaseCapital() :number;
-  abstract getQuoteCapital() :number;
-  abstract getNewMarketPrice() : Promise<BigNumber> ;
+  abstract getBaseCapital (): number;
+  abstract getQuoteCapital (): number;
+  abstract getNewMarketPrice (): Promise<BigNumber> ;
 
 
-  async getOrderBook() {
+  async getOrderBook () {
     let orderbook=  this.orderbook.state();
     return {instanceName: this.instanceName, Asks: orderbook.asks.map((p: {price: BigNumber; quantity: BigNumber}) => [p.price.toString(), p.quantity.toString()]) ,
       Bids: orderbook.bids.map((p: { price: BigNumber; quantity: BigNumber}) => [p.price.toString(), p.quantity.toString()])
@@ -317,7 +320,7 @@ abstract class AbstractBot {
             quantity = await this.getQuantity(marketPrice, side) ;
         }
 
-        if (( ((ordtype === 1 || ordtype === 5) && price.gt(0)) || ordtype===0 )  && quantity.gt(0)) {
+        if (( ((ordtype === 1 || ordtype === 4) && price.gt(0)) || ordtype===0 )  && quantity.gt(0)) {
 
           if (side === 0) {
             if (marketPrice.times(quantity).gt(this.quotebalAvail)) {
@@ -329,7 +332,7 @@ abstract class AbstractBot {
             let bestask= this.orderbook.bestask();
             if (bestask && ordtype === 1){
               let order = this.orders.get(bestask.orders[0].id);
-              if (order && price.gte(order.price)) {      
+              if (order && price.gte(order.price)) {
                 this.logger.warn (`${this.instanceName} 'Wash trade not allowed. New BUY order price ${price.toFixed(this.quoteDisplayDecimals)} >=  ${order.price.toString()}`);
                 return;
               }
@@ -345,7 +348,7 @@ abstract class AbstractBot {
             let bestbid= this.orderbook.bestbid();
             if (bestbid && ordtype === 1){
               let order = this.orders.get(bestbid.orders[0].id);
-              if (order && price.lte(order.price)) {      
+              if (order && price.lte(order.price)) {
                 this.logger.warn (`${this.instanceName} 'Wash trade not allowed. New SELL order price ${price.toFixed(this.quoteDisplayDecimals)} <=  ${order.price.toString()}`);
                 return;
               }
@@ -407,7 +410,7 @@ abstract class AbstractBot {
     if (idx > -1 ) { //Hardhat revert reason already in the message
       return error.message.substring(idx + 50, idx + 59);
     } else {
-      if (!error.transaction) { 
+      if (!error.transaction) {
         this.logger.warn (`${this.instanceName} getRevertReason: error.transaction is undefined`);
       } else {
         //https://gist.github.com/gluk64/fdea559472d957f1138ed93bcbc6f78a
@@ -465,14 +468,14 @@ abstract class AbstractBot {
     let gasPx = await this.getGasPrice();
     return gasPx.div(1e9).toNumber() ;
   }
-  
+
   async getGasPrice() {
     let gasPx;
     if (getConfig('NODE_ENV_SETTINGS')==='localdb-hh') {
       gasPx = BigNumberEthers.from(25000000000);
     } else {
       gasPx = await provider.getGasPrice();
-    } 
+    }
     return gasPx;
   }
 
@@ -513,7 +516,7 @@ abstract class AbstractBot {
       this.avaxChainbalance = utils.formatUnits(bal, 18);
       //console.log('AVAX Wallet', this.avaxChainbalance);
 
-      if (this.avaxChainbalance <= await this.getSettingValue('LOW_AVAX_CHAIN_BALANCE') ) {
+      if (this.avaxChainbalance <= this.getSettingValue('LOW_AVAX_CHAIN_BALANCE') ) {
         var text= "*****************" +  this.instanceName + " LOW AVAX Chain Balance for account :" + this.account ;
         text = text + utils.lineBreak + '*****************************************************************************************';
         text = text + utils.lineBreak + 'LOW AVAX Chain Balance, you will not be able pay for gas fees soon unless you replenish your account. Current Balance: ' + this.avaxChainbalance;
@@ -594,7 +597,7 @@ abstract class AbstractBot {
           tx.effectiveGasPrice? tx.effectiveGasPrice.toString(): '225',
           tx.cumulativeGasUsed.toString()
           );
-                 
+
         if (utils.statusMap[order.status] === "NEW" || utils.statusMap[order.status] === "PARTIAL") {
           await this.addOrderToMap(order);
         } else if (utils.statusMap[order.status] === "FILLED" || utils.statusMap[order.status] === "CANCELED") {
@@ -618,44 +621,57 @@ abstract class AbstractBot {
 
         //The same Order event received from the txReceipt & from the listener. Ignore
       } else {
-        if (order.quantityfilled.gte(existingOrder.quantityfilled)) { // Against a stale/delayed event that has quantityfilled <= existing quantityfilled
+        if (order.quantityfilled.gt(existingOrder.quantityfilled)) { // Against a stale/delayed event that has quantityfilled <= existing quantityfilled
+          this.setLastExecution(order, order.quantityfilled.minus(existingOrder.quantityfilled).toNumber(), order.side===0? 1:0)
           this.orders.set(order.id, order);
           this.orderbook.change(order);
-          if (this.PNL) {this.PNL.addOrder(order)}; 
+          if (this.PNL) {this.PNL.addOrder(order)};
           this.logger.debug (`${this.instanceName} Update Order event: ${order.id} ${order.pair} ${order.side === 0 ? 'BUY' :'SELL'} ${order.quantity.toString()} @ ${order.price.toString()} ${utils.statusMap[order.status]}`);
         }
       }
     } else {
       this.orders.set(order.id, order);
       this.orderbook.add(order);
-      if (this.PNL) {this.PNL.addOrder(order)}; 
+      if (order.quantityfilled.gt(0)){
+        this.setLastExecution(order, order.quantityfilled.toNumber(), order.side);
+      }
+      if (this.PNL) {this.PNL.addOrder(order)};
       this.logger.debug (`${this.instanceName} New Order event: ${order.id} ${order.pair} ${order.side === 0 ? 'BUY' :'SELL'} ${order.quantity.toString()} @ ${order.price.toString()} ${utils.statusMap[order.status]}`);
     }
+  }
+
+  setLastExecution (order:any, quantity:any, takerSide:number) {
+    this.lastExecution = {price: order.price.toNumber() , quantity, takerSide}
   }
 
   async removeOrderFromMap (order:any){
     if (!order){
       return;
     }
-    if (this.orders.has(order.id)) {
+    const existingOrder = this.orders.get(order.id);
+    if (existingOrder) {
+      if (order.quantityfilled.gt(existingOrder.quantityfilled)) {
+        this.setLastExecution(order, order.quantityfilled.minus(existingOrder.quantityfilled).toNumber(), order.side===0? 1:0);
+      }
       this.orders.delete(order.id);
       this.orderbook.remove(order);
-      if (this.PNL) {this.PNL.addOrder(order)}; 
+      if (this.PNL) {this.PNL.addOrder(order)};
       //const order =  this.orders.get(order.id);
       this.logger.debug (`${this.instanceName} removeOrderFromMap Filled/Canceled Order event: ${order.id} ${order.pair} ${order.side === 0 ? 'BUY' :'SELL'} ${order.quantity.toString()} @ ${order.price.toString()} ${utils.statusMap[order.status]}`);
 
     } else {
+      this.setLastExecution(order, order.quantityfilled.toNumber(), order.side);
       this.logger.debug (`${this.instanceName} removeOrderFromMap Filled/Canceled Order event, Order Not Found: ${order.id} ${order.pair} ${order.side === 0 ? 'BUY' :'SELL'} ${order.quantity.toString()} @ ${order.price.toString()} ${utils.statusMap[order.status]}`);
     }
   }
 
   async cancelAll () {
     try {
-      var orderIds = Array.from(this.orders.keys());
+      let orderIds = Array.from(this.orders.keys());
       if (orderIds.length > 0) {
         this.orderCount++;
         this.logger.warn (`${this.instanceName} Cancelling all outstanding orders, OrderNbr ${this.orderCount}`);
-        const tx = await this.tradePair.cancelAllOrders(this.tradePairByte32, orderIds, await this.getOptions(true));
+        const tx = await this.tradePair.cancelAllOrders(this.tradePairByte32, orderIds.slice(1, Math.min(20,orderIds.length-1)), await this.getOptions(true));
         //const tx = await this.race({ promise:oderCancel , count: this.orderCount} );
         //const orderLog = await tx.wait();
         //const orderLog =  await this.race({ promise: tx.wait(), count: this.orderCount} );
@@ -747,6 +763,8 @@ abstract class AbstractBot {
   }
 
   async processOpenOrders () {
+
+    this.logger.info(`${this.instanceName} Recovering open orders:`,  );
     var orders = await this.getOpenOrders();
     for (const order of orders) {
       var ordert = new Order ({id: order.id
@@ -799,7 +817,7 @@ abstract class AbstractBot {
         return false;
       } else {
         if (orderinMemory && (orderinMemory.status != orderInChain.status ||  order.quantityfilled.gt(orderinMemory.quantityfilled)) ) {
-          this.logger.warn (`${this.instanceName} checkOrderInChain: Intermediary message may have been missed ${order.id} ${order.side === 0 ? 'BUY' :'SELL'} Status on chain: ${utils.statusMap[order.status]} 
+          this.logger.warn (`${this.instanceName} checkOrderInChain: Intermediary message may have been missed ${order.id} ${order.side === 0 ? 'BUY' :'SELL'} Status on chain: ${utils.statusMap[order.status]}
           Qty Filled on chain: ${order.quantity.toFixed(this.baseDisplayDecimals)} Qty Filled in mem:  ${orderinMemory.quantity.toFixed(this.baseDisplayDecimals)} ,Status in mem: ${utils.statusMap[orderinMemory.status]}`);
            await this.addOrderToMap(order);
         }
@@ -808,10 +826,10 @@ abstract class AbstractBot {
     } catch (error:any) {
       this.logger.error (`${this.instanceName} Error during checkOrderInChain ${orderid}`, error);
       return false;
-    } 
+    }
   }
 
- 
+
   async depositToken (contract:any, symbolByte32:string,  decimals:number, deposit_amount:any) {
     const tx1 = await contract.approve(this.portfolio.address, utils.parseUnits(deposit_amount.toString(), decimals), await this.getOptions());
     const log = await tx1.wait();
@@ -844,8 +862,8 @@ abstract class AbstractBot {
 // Returns 0,0 if there is no order in the book for the empty array indexes. if 1 data point requested(best Bid, bestAsk) [0,0]
 async getBookfromChain() {
   try {
-    var borders = await this.tradePair.getNBuyBook(this.tradePairByte32,2)
-    var sorders = await this.tradePair.getNSellBook(this.tradePairByte32,2)
+    var borders = await this.tradePair.getNBuyBook(this.tradePairByte32, 2, 50, 0, utils.fromUtf8(''));
+    var sorders = await this.tradePair.getNSellBook(this.tradePairByte32, 2, 50, 0, utils.fromUtf8(''))
     var buyOrderArray = [];
     var sellOrderArray = [];
 
@@ -858,7 +876,7 @@ async getBookfromChain() {
   }
 }
 
-// returns true if any transfers happened from wallet to portfolio and need to refresh balances 
+// returns true if any transfers happened from wallet to portfolio and need to refresh balances
 async doInitialFunding(): Promise<boolean>{
   // if any deposits/withdrawals are done,  balances are also refreshed
   const result = await this.fundPortfolioDollarNeutral();
@@ -866,15 +884,16 @@ async doInitialFunding(): Promise<boolean>{
 }
 
 async fundPortfolioDollarNeutral (): Promise<boolean> {
-  var deposit_amount:string;
-  var amount =0;
-  var withdraw_amount:string;
+  let deposit_amount:string;
+  let amount =0;
+  let withdraw_amount:string;
 
   await this.getNewMarketPrice();
 
-  var baseCapital = this.getBaseCapital();
-  var quoteCapital = this.getQuoteCapital();
-  var refreshBalances =false;
+  let baseCapital = this.getBaseCapital();
+  let quoteCapital = this.getQuoteCapital();
+
+  let refreshBalances =false;
   this.logger.info (`${this.instanceName} fundPortfolioDollarNeutral called! Calculated BaseCap ${baseCapital} ${this.base} Calculated QuoteCap ${quoteCapital} ${this.quote}`);
   try {
     if (this.portfolioRebalanceAtStart === "Y" ) {
@@ -972,7 +991,7 @@ async fundPortfolioDollarNeutral (): Promise<boolean> {
       }
     }
     return false;
-  } 
+  }
  }
 
 async cleanUpAndExit() {
@@ -980,7 +999,7 @@ async cleanUpAndExit() {
       this.logger.warn (`${this.instanceName} === Process Exit Called === `);
       this.cleanupCalled=true;
       this.stop();
-      var timeout = Math.max(7, (await this.getSettingValue('CLEAR_TIMOUT_SECONDS')  || 10)) ; //Min 6 seconds because this.stop calls cancelall and waits for 5 seconds     
+      var timeout = Math.max(7, (this.getSettingValue('CLEAR_TIMOUT_SECONDS')  || 10)) ; //Min 6 seconds because this.stop calls cancelall and waits for 5 seconds
       setTimeout(() => {
         this.logger.warn (`${this.instanceName} === SHUTTING DOWN === `);
         process.exit(0) }, timeout * 1000
@@ -990,4 +1009,3 @@ async cleanUpAndExit() {
 }
 
 export default AbstractBot;
-

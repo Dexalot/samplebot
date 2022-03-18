@@ -26,8 +26,7 @@ class utils {
   "1": "LIMIT",         // LIMIT = Order.Type1.LIMIT = 0
   "2": "STOP",
   "3": "STOPLIMIT",
-  "4" : "MARKETONOPEN" ,
-  "5" : "LIMITONOPEN"
+  "4" : "LIMITFOK"
 }          // STOP = Order.Type1.STOP = 0
 
 
@@ -169,13 +168,20 @@ class utils {
     return blockchain;
   }
 
-  static randomFromInterval(min:number, max:number, decimalPlaces=2) {  // either positive or negative random number between 2 numbers 
+  static randomFromInterval(min:number, max:number, decimalPlaces=2) {  // either positive or negative random number between 2 numbers
     var rand = Math.random()*(max-min) + min;
     var power = Math.pow(10, decimalPlaces);
     var num =  Math.floor(rand*power) / power;
-    num *= Math.round(Math.random()) ? 1 : -1
+    num *= Math.round(Math.random()) === 0 ? 1 : -1
     return num;
-}
+  }
+
+  static randomFromIntervalPositive(min:number, max:number, decimalPlaces=2) {  // either positive or negative random number between 2 numbers
+    var rand = Math.random()*(max-min) + min;
+    var power = Math.pow(10, decimalPlaces);
+    var num =  Math.floor(rand*power) / power;
+    return num;
+  }
 
 
 }
