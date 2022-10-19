@@ -16,20 +16,25 @@ class utils {
   static statusMap: any = {"0": "NEW",          // NEW = Order.Status.NEW = 0
       "2": "PARTIAL",      // PARTIAL = Order.Status.PARTIAL = 2
       "3": "FILLED",       // FILLED = Order.Status.FILLED = 3
-      "4": "CANCELED"};    // CANCELED = Order.Status.CANCELED = 4
+      "4": "CANCELED",     // CANCELED = Order.Status.CANCELED = 4
+      "9": "PENDING"};     // Not a valid contract status. For app only, to track orders that are sent out but not comitted to the blockchain.
+      // Tx technically won't be committed to the blockchain and stay in the mempool when tx_gaspricesent_inoptions < current_network_gasprice
 
   static sideMap: any = {"BUY": 0 ,            // BUY = Order.Side.BUY = 0
-  "SELL": 1 }            // SELL = Order.Side.SELL = 0
+      "SELL": 1 }            // SELL = Order.Side.SELL = 0
 
 
   static type1Map = {"0": "MARKET",        // MARKET = Order.Type1.MARKET = 0
   "1": "LIMIT",         // LIMIT = Order.Type1.LIMIT = 0
   "2": "STOP",
   "3": "STOPLIMIT",
-  "4" : "LIMITFOK"
-}          // STOP = Order.Type1.STOP = 0
+  }          // STOP = Order.Type1.STOP = 0
 
-
+  static type2Map = {"0": "GTC",
+  "1": "FOK",
+  "2": "IOC",
+  "3": "PO",
+  }
 
   static lineBreak = "\r\n";
 
@@ -140,14 +145,14 @@ class utils {
     return roundDown.toDate();
   };
 
-  static printBalances=(account:string, name:string, res:any, evmdecimals:number):void => {
-    //let assetTypeInt = parseInt(res.assetType.toString());
-    let assetType = res.assetType.toString();
-    console.log("Account: ", account, ":::",
-    name, "::", assetType, "::",
-    ethers.utils.formatUnits(res.available, evmdecimals), "/",
-    ethers.utils.formatUnits(res.total, evmdecimals), "/",
-    "[P Avail / P Tot]");
+  static printBalances=(account:string, name:string, res:any):void => {
+    console.log(name, "::",
+    account.substring(account.length-5),
+    res.mainnetBal, "/",
+    res.subnetBal, "/",
+    res.portfolioTot, "/",
+    res.portfolioAvail, "/",
+    "[Mainnet/ Subnet/ P Tot / P Avail]");
   };
 
 
@@ -161,7 +166,7 @@ class utils {
   }
 
   static getBlockChain() :string {
-    var blockchain = 'Avalanche';
+    let blockchain = 'Avalanche';
     if ( getConfig("NODE_ENV_SETTINGS").includes ('-hh' ) )  {
       blockchain='Hardhat';
     }
@@ -169,17 +174,17 @@ class utils {
   }
 
   static randomFromInterval(min:number, max:number, decimalPlaces=2) {  // either positive or negative random number between 2 numbers
-    var rand = Math.random()*(max-min) + min;
-    var power = Math.pow(10, decimalPlaces);
-    var num =  Math.floor(rand*power) / power;
+    const rand = Math.random()*(max-min) + min;
+    const power = Math.pow(10, decimalPlaces);
+    let num =  Math.floor(rand*power) / power;
     num *= Math.round(Math.random()) === 0 ? 1 : -1
     return num;
   }
 
   static randomFromIntervalPositive(min:number, max:number, decimalPlaces=2) {  // either positive or negative random number between 2 numbers
-    var rand = Math.random()*(max-min) + min;
-    var power = Math.pow(10, decimalPlaces);
-    var num =  Math.floor(rand*power) / power;
+    const rand = Math.random()*(max-min) + min;
+    const power = Math.pow(10, decimalPlaces);
+    const num =  Math.floor(rand*power) / power;
     return num;
   }
 
