@@ -53,9 +53,8 @@
     "E-OACC-01": "Exchange: admin account needed for addAdmin",
     "E-OACC-02": "Exchange: admin account needed for removeAdmin",
     "E-OACC-03": "Exchange: admin account needed for updateTransferFeeRate",
-    "E-OACC-04": "Exchange: admin account needed for updateRate",
-    "E-OACC-05": "Exchange: admin account needed for setPortfolio",
-    "E-OACC-06": "Exchange: admin account needed for setTradePairs",
+    "E-OACC-04": "Exchange: admin account needed for setPortfolio",
+
     "E-OACC-07": "Exchange: admin account needed for addTradePair",
     "E-OACC-08": "Exchange: admin account needed for pausePortfolio",
     "E-OACC-09": "Exchange: admin account needed for pauseDeposit",

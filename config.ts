@@ -35,8 +35,6 @@ nconf
   // NODE_ENV is a GCP Environment Variable that cant be changed. it needs to be set to production for anything that is deployed to GCP
   .env([
     "NODE_ENV_SETTINGS",
-    "CHAIN_INSTANCE",
-    "CHAIN_ID",
     "API_URL",
     "DOMAIN_LINK"
   ]);
