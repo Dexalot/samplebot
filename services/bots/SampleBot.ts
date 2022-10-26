@@ -68,6 +68,7 @@ class SampleBot extends AbstractBot{
       //This displays my local orderbook consisting of my own orders only. NOT from the exchange
       //Use this.getBookfromChain() for the Exchange orderbook
       this.logger.debug (`${JSON.stringify(this.getOrderBook())}`);
+      //const bookinChain = await this.getBookfromChain();
 
        //Get rid of any order that is outstanding on this account if needed.
        //if you have more than 10-15 outstaning orders on this pair, this function may run out of gas

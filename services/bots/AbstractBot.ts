@@ -11,6 +11,8 @@ import { getLogger } from "../logger";
 import OrderBook from "./orderbook";
 
 import ERC20ABI from '../../artifacts/contracts/ERC20.json';
+import OrderBookRecordRaw from "../../models/orderBookRecordRaw";
+import OrderBookRaw from "../../models/orderBookRaw";
 const apiUrl =  getConfig('API_URL') + "trading/";
 const ADDRESS0 ='0x0000000000000000000000000000000000000000000000000000000000000000';
 
@@ -51,7 +53,7 @@ abstract class AbstractBot {
   protected initialDepositQuote= 10000;
   protected environments:any;
   protected contracts:any = {};
-
+  protected washTradeCheck= true;
   private privateKey:any;
   protected tokenDetails:any;
 
@@ -379,13 +381,14 @@ abstract class AbstractBot {
               utils.printBalances(this.account, this.quote, this.contracts[this.quote]);
               return;
             }
-
-            const myBestask= this.orderbook.bestask();
-            if (myBestask && ordtype === 1){
-              const order = this.orders.get(myBestask.orders[0].clientOrderId);
-              if (order && price.gte(order.price)) {
-                this.logger.warn (`${this.instanceName} 'Wash trade not allowed. New BUY order price ${price.toFixed(this.quoteDisplayDecimals)} >= Best Ask ${order.price.toString()}`);
-                return;
+            if (this.washTradeCheck) {
+              const myBestask= this.orderbook.bestask();
+              if (myBestask && ordtype === 1){
+                const order = this.orders.get(myBestask.orders[0].clientOrderId);
+                if (order && price.gte(order.price)) {
+                  this.logger.warn (`${this.instanceName} 'Wash trade not allowed. New BUY order price ${price.toFixed(this.quoteDisplayDecimals)} >= Best Ask ${order.price.toString()}`);
+                  return;
+                }
               }
             }
 
@@ -395,13 +398,14 @@ abstract class AbstractBot {
               utils.printBalances(this.account, this.base, this.contracts[this.base]);
               return;
             }
-
-            const myBestbid= this.orderbook.bestbid();
-            if (myBestbid && ordtype === 1){
-              const order = this.orders.get(myBestbid.orders[0].clientOrderId);
-              if (order && price.lte(order.price)) {
-                this.logger.warn (`${this.instanceName} 'Wash trade not allowed. New SELL order price ${price.toFixed(this.quoteDisplayDecimals)} <= Best Bid ${order.price.toString()}`);
-                return;
+            if (this.washTradeCheck) {
+              const myBestbid= this.orderbook.bestbid();
+              if (myBestbid && ordtype === 1){
+                const order = this.orders.get(myBestbid.orders[0].clientOrderId);
+                if (order && price.lte(order.price)) {
+                  this.logger.warn (`${this.instanceName} 'Wash trade not allowed. New SELL order price ${price.toFixed(this.quoteDisplayDecimals)} <= Best Bid ${order.price.toString()}`);
+                  return;
+                }
               }
             }
           }
@@ -999,8 +1003,99 @@ abstract class AbstractBot {
   }
 
 
+  async getBookwithLoop  (side: number): Promise<any> {
+    if (this.tradePair === undefined) {
+      this.logger.error("GetBookErr: Contract connection not ready yet.!");
+      return { buyBook: [], sellBook: [] };
+    }
+    const map1 = new Map<string, OrderBookRecordRaw>();
+    let price = BigNumberEthers.from(0);
+    let lastOrderId = utils.fromUtf8("");
+    let book;
+    let i;
+    const nPrice = 50;
+    const nOrder = 50;
+    this.logger.debug(`getBookwithLoop called ${this.tradePairIdentifier} ${side}: `);
+
+
+    let k = 0;
+    let total = BigNumberEthers.from(0);
+    do {
+      try {
+        book = await this.tradePair.getNBook(this.tradePairByte32, side , nPrice, nOrder, price.toString(), lastOrderId);
+      } catch (error) {
+        this.logger.error(`${this.tradePairIdentifier} ,getBookwithLoop  ${side} pass :  ${k} `, error);
+      }
+
+      price = book[2];
+      lastOrderId = book[3];
+
+      k += 1;
+
+      let currentRecord;
+      for (i = 0; i < book[0].length; i++) {
+        if (book[0][i].eq(0)) {
+          //console.log (i);
+          break;
+        } else {
+          const key = book[0][i].toString();
+          //total.add(book[1][i]);
+          if (map1.has(key)) {
+            currentRecord = map1.get(key);
+            if (currentRecord) {
+              currentRecord.quantity = book[1][i].add(currentRecord.quantity);
+            }
+          } else {
+            map1.set(key, {
+              price: book[0][i],
+              quantity: book[1][i],
+              total
+            });
+          }
+        }
+      }
+    } while (price.gt(0) || lastOrderId != utils.fromUtf8(""));
+
+    const orderbook: OrderBookRecordRaw[] = Array.from(map1.values());
+
+    //Calc Totals orderbook.length>0 ? orderbook[0].quantity:
+
+    for (i = 0; i < orderbook.length; i++) {
+      total = total.add(orderbook[i].quantity);
+      orderbook[i].total = total;
+      this.logger.silly(
+        `${this.tradePairIdentifier}  ${side} : After Sum ${total.toString()} Price: ${orderbook[i].price.toString()}, Qty: ${orderbook[
+          i
+        ].quantity.toString()}, Total: ${orderbook[i].total.toString()}`
+      );
+    }
+
+    return orderbook;
+  }
+
+  async getBookfromChain(): Promise<OrderBookRaw | null> {
+    if (this.tradePair === undefined) {
+      this.logger.error("GetBookErr: Contract connection not ready yet.!");
+      return null;
+    }
+
+    try {
+      const rawBuyBook = await this.getBookwithLoop(0);
+      const rawSellBook = await this.getBookwithLoop(1);
+
+      const orderbookRaw: OrderBookRaw = {
+        buyBook: rawBuyBook,
+        sellBook: rawSellBook
+      };
+      return orderbookRaw;
+    } catch (error) {
+      this.logger.error("GetBook Err", error);
+      return null;
+    }
+  }
+
 // Returns 0,0 if there is no order in the book for the empty array indexes. if 1 data point requested(best Bid, bestAsk) [0,0]
-async getBookfromChain() {
+async getBookfromChain2() {
   try {
     const borders = await this.tradePair.getNBook(this.tradePairByte32, 0, 2, 50, 0, utils.fromUtf8(''));
     const sorders = await this.tradePair.getNBook(this.tradePairByte32, 1, 2, 50, 0, utils.fromUtf8(''))
