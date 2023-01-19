@@ -49,8 +49,8 @@ abstract class AbstractBot {
   protected portfolioRebalanceAtStart= "N";
   protected lastExecution:any;
   protected PNL:any; // Needs to be implemented
-  protected initialDepositBase = 50000;
-  protected initialDepositQuote= 10000;
+  protected initialDepositBase = 10000;
+  protected initialDepositQuote= 50000;
   protected environments:any;
   protected contracts:any = {};
   protected washTradeCheck= true;
@@ -346,6 +346,91 @@ abstract class AbstractBot {
     return new BigNumber(this.minTradeAmnt * (1+ Math.random()* 0.2)).div(price);
   }
 
+
+  // Reference implemenation, it just send 6 buy limit GTC orders with prices from 94 to 100
+  async addLimitOrderList () {
+
+    const clientOrderIds=[];
+    const prices=[];
+    const quantities= [];
+    const sides =[];
+    const type2s =[];
+
+
+    //buy orders
+    for (let i=0; i<6; i++) {
+
+      const clientOrderId = await this.getClientOrderId(i)
+      const priceToSend = utils.parseUnits((100 - i).toFixed(this.quoteDisplayDecimals), this.contracts[this.quote].tokenDetails.evmdecimals);
+      const quantityToSend = utils.parseUnits((10 + i).toFixed(this.baseDisplayDecimals), this.contracts[this.base].tokenDetails.evmdecimals);
+      clientOrderIds.push(clientOrderId);
+
+
+      prices.push(priceToSend);
+      quantities.push(quantityToSend);
+      sides.push(0);
+      type2s.push(0);
+
+      const order = this.makeOrder(this.account,
+        this.tradePairByte32,
+        '', // orderid not assigned by the smart contract yet
+        clientOrderId,
+        priceToSend,
+        0,
+        quantityToSend,
+        0, 1, 0, //Buy , Limit, GTC
+        9, //PENDING status
+        0, 0, '', 0, 0, 0, 0 );
+
+      this.addOrderToMap(order);
+
+    }
+
+    try {
+
+    const tx = await this.tradePair.addLimitOrderList( this.tradePairByte32,clientOrderIds,prices,quantities,sides,type2s,true);
+    const orderLog = await tx.wait();
+
+     //Add the order to the map quickly to be replaced by the event fired by the blockchain that will follow.
+    if (orderLog){
+        for (const _log of orderLog.events) {
+          if (_log.event) {
+            if (_log.event === 'OrderStatusChanged') {
+              if (_log.args.traderaddress === this.account && _log.args.pair === this.tradePairByte32) {
+                await this.processOrders(_log.args.version, this.account, _log.args.pair, _log.args.orderId,  _log.args.clientOrderId, _log.args.price, _log.args.totalamount
+                  , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee , _log) ;
+              }
+            }
+          }
+        }
+      }
+    } catch (error:any) {
+          for (const clientOrderId of clientOrderIds) {
+          //Need to remove the pending order from the memory if there is any error
+            this.removeOrderByClOrdId(clientOrderId);
+          }
+
+          const nonceErr = 'Nonce too high';
+          const idx = error.message.indexOf(nonceErr);
+          if (error.code === "NONCE_EXPIRED" || idx > -1 ) {
+            this.logger.warn (`${this.instanceName} addLimitOrderList error: Invalid Nonce `);
+
+            await this.correctNonce(this.contracts["SubNetProvider"]);
+          } else {
+            const reason = await this.getRevertReason(error);
+            if (reason) {
+              this.logger.warn (`${this.instanceName} addLimitOrderList error: Revert Reason ${reason}`);
+
+            } else {
+              this.logger.error (`${this.instanceName} addLimitOrderList error:`, error);
+            }
+          }
+
+        }
+
+  }
+
+
   async addOrder (side:number, qty:BigNumber| undefined, px:BigNumber| undefined, ordtype=1, ordType2=0) { // LIMIT ORDER  & GTC)
       if (!this.status) {
         return;
@@ -479,12 +564,12 @@ abstract class AbstractBot {
       }
   }
 
-  async getClientOrderId(): Promise<string> {
+  async getClientOrderId(counter =1): Promise<string> {
     const blocknumber: number =
-        (await this.contracts["SubNetProvider"].provider.getBlockNumber()) || 0
-    const timestamp = new Date().toISOString()
+        (await this.contracts["SubNetProvider"].provider.getBlockNumber()) || 0;
+    const timestamp = new Date().toISOString();
     if (this.account) {
-        const id = eutils.toUtf8Bytes(`${this.account}${blocknumber}${timestamp}`);
+        const id = eutils.toUtf8Bytes(`${this.account}${blocknumber}${timestamp}${counter}`);
         return eutils.keccak256(id);
     }
     return ''
