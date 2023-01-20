@@ -1218,9 +1218,9 @@ async fundPortfolioDollarNeutral (): Promise<boolean> {
   let refreshBalances =false;
   this.logger.info (`${this.instanceName} fundPortfolioDollarNeutral called! Calculated BaseCap ${baseCapital} ${this.base} Calculated QuoteCap ${quoteCapital} ${this.quote}`);
   try {
-    //ALOT GAS HANDLING WHEN THERE IS A REAL SUBNET
     if (!(getConfig('NODE_ENV_SETTINGS')==='localdb-hh' ||
-              getConfig('NODE_ENV_SETTINGS')==='dev1-hh')) {
+          getConfig('NODE_ENV_SETTINGS')==='dev1-hh' ||
+          getConfig('NODE_ENV_SETTINGS').indexOf('multiapp') >-1) ) {
         const alot = this.contracts["ALOT"]
         if (alot.subnetBal < 10 ) {
           deposit_amount = (10-alot.subnetBal).toFixed(5);
