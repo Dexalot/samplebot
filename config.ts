@@ -47,13 +47,20 @@ export const DEXALOT_ENV = {
   Staging: "staging"
 };
 
-const environment = getEnvironment();
+let environment = getEnvironment();
 
 nconf
   // 3.1 .env file that contains sensitive info like passwords
   .file("user", {
     file: path.join(__dirname, "/.env." + environment.toLowerCase())
   });
+
+
+  // Just in case we want to use the same config.json with different .env files , add @ at the end of .env.dev@1
+if (environment.indexOf("@")> -1){
+  environment =  environment.substring(0, environment.indexOf("@"));
+}
+
 
 nconf
   // 3. Config file

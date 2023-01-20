@@ -43,12 +43,12 @@ Hence it is normal to see the message "Duplicate Order event: ......"
 
 
 NOTE:
-Sample Bot has hardcoded AVAX price in its getNewMarketPrice() function and will send orders using these hardcoded prices.
+Sample Bot has hardcoded ALOT price in its getNewMarketPrice() function and will send orders using these hardcoded prices.
 
 Feel free to change the sampleBot and/or add a new bot type that extends AbstractBot. if it is a new bot , add it to the BotFactory.ts and the bot_type in the above .env.fuji file
 
 ## TO DO
- Listend to tradePairs' Executed event (trades) from the blockchain OR
+ Listen to tradePairs' Executed event (trades) from the blockchain OR
  Web Socket Connection to Dexalot APIs to receive the orderbook, and trades events instead of getting them from the blockchain.
 
 
