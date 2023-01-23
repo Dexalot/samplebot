@@ -43,9 +43,8 @@ class LoadBot extends AbstractBot{
 
   async startOrderUpdater  ()  {
     if (this.status) {
-      // Enable the next line if you need the bot to run continuously
-      // this.orderUptader = setTimeout( () => this.updateOrders(), this.interval );
-      // Comment out if you need the bot to run continuously
+      //Enable the next line if you need the bot to run continuously
+      this.orderUptader = setTimeout( () => this.updateOrders(), this.interval );
       this.updateOrders();
     } else {
       this.logger.warn (`${this.instanceName} Bot Status set to false, will not send orders`);
@@ -58,7 +57,6 @@ class LoadBot extends AbstractBot{
     }
 
     //await this.cancelAll();
-
     // this will refill the gas tank if running low
     try {
       let i=0
@@ -78,8 +76,6 @@ class LoadBot extends AbstractBot{
     this.logger.error (`${this.instanceName} Error in UpdateOrders`, error);
     //process.exit(1);
   } finally {
-    // Sleep 5 seconds
-    await utils.sleep(5000);
     //  Enable the next line if you need the bot to run continuously
     this.startOrderUpdater();
   }
@@ -99,7 +95,7 @@ class LoadBot extends AbstractBot{
     for (let i=0; i<6; i++) {
 
       const clientOrderId = await this.getClientOrderId(i)
-      const pxdivisor = this.base ==='tALOT' ? 200 : 20;
+      const pxdivisor = this.base ==='tALOT' ? 2000 : 20;
       const px = i%2==0 ? marketpx.minus(i/pxdivisor)  : marketpx.plus(i/pxdivisor);
       const side = i%2;
       const type = 1;

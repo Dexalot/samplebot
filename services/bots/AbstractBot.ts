@@ -599,9 +599,9 @@ abstract class AbstractBot {
   async getOptions (provider:any = this.contracts["SubNetProvider"], highGasLimit = false) {
     const gasPx= (await this.getGasPrice(provider)) ;
     const gasP = Math.ceil(gasPx.mul(105).div(100).toNumber());
-    const optionsWithNonce = {gasLimit: 4000000, maxFeePerGas:gasP , maxPriorityFeePerGas:1 , nonce:0};
+    const optionsWithNonce = {gasLimit: 15000000, maxFeePerGas:gasP , maxPriorityFeePerGas:1 , nonce:0};
     if (highGasLimit) {
-      optionsWithNonce.gasLimit= 6000000;
+      optionsWithNonce.gasLimit= 25000000;
     }
     optionsWithNonce.nonce = provider.nonce++;
     return optionsWithNonce;
