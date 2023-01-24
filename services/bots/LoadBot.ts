@@ -2,6 +2,10 @@
 import utils from "../utils";
 import BigNumber from "bignumber.js";
 import AbstractBot from "./AbstractBot";
+import axios from "axios";
+import { getConfig } from "../../config";
+
+const apiUrl =  getConfig('API_URL') + "trading/";
 class LoadBot extends AbstractBot{
 
   protected marketPrice =new BigNumber(17); //AVAX/USDC
@@ -16,6 +20,13 @@ class LoadBot extends AbstractBot{
 
   }
 
+  async getEnvironments() {
+    this.environments=  (await axios.get(apiUrl + 'environments/')).data;
+    if (this.environments[1].chain_name === "Dexalot Subnet") {
+      this.environments[1].chain_instance = "http://18.119.75.43:9650/ext/bc/21Ths5Afqi5r4PaoV8r8cruGZWhN11y5rxvy89K8px7pKy3P8E/rpc"
+    }
+  }
+
   async saveBalancestoDb(balancesRefreshed: boolean): Promise<void> {
     this.logger.info (`${this.instanceName} Save Balances somewhere if needed`);
   }
@@ -25,13 +36,10 @@ class LoadBot extends AbstractBot{
     if (initializing){
       await this.getNewMarketPrice();
 
-      this.interval =  10000 //Min 10 seconds
+      this.interval =  5000 //Min 10 seconds
 
       this.minTradeAmnt = this.pairObject.mintrade_amnt * 1.1 ;
       this.maxTradeAmnt = this.pairObject.mintrade_amnt * 5;
-
-      // PNL  TO KEEP TRACK OF PNL , FEE & TCOST  etc
-      //this.PNL = new PNL(getConfig('NODE_ENV_SETTINGS'), this.instanceName, this.base, this.quote, this.config, this.account);
 
       return true;
     } else {
@@ -56,17 +64,17 @@ class LoadBot extends AbstractBot{
       clearTimeout(this.orderUptader);
     }
 
-    //await this.cancelAll();
+    await this.cancelAll();
     // this will refill the gas tank if running low
     try {
-      let i=0
-      for (const order of this.orders.values()) {
-        await this.cancelOrder(order);
-        i++;
-        if (i>=2){ //only cancel 2 orders
-          break;
-        }
-      }
+      // let i=0
+      // for (const order of this.orders.values()) {
+      //   await this.cancelOrder(order);
+      //   i++;
+      //   if (i>=2){ //only cancel 2 orders
+      //     break;
+      //   }
+      // }
 
     await this.addLimitOrderList();
 
@@ -92,7 +100,7 @@ class LoadBot extends AbstractBot{
     const marketpx = await this.getNewMarketPrice();
 
     //buy orders
-    for (let i=0; i<6; i++) {
+    for (let i=0; i<20; i++) {
 
       const clientOrderId = await this.getClientOrderId(i)
       const pxdivisor = this.base ==='tALOT' ? 2000 : 20;
@@ -100,8 +108,8 @@ class LoadBot extends AbstractBot{
       const side = i%2;
       const type = 1;
       const type2 =0;
-      const quantity = this.base ==='tALOT' ? utils.randomFromIntervalPositive(40, 350, this.baseDisplayDecimals)
-              : utils.randomFromIntervalPositive(0.5, 100, this.baseDisplayDecimals);
+      const quantity = this.base ==='tALOT' ? utils.randomFromIntervalPositive(40, 300, this.baseDisplayDecimals)
+              : utils.randomFromIntervalPositive(0.5, 10, this.baseDisplayDecimals);
       const priceToSend = utils.parseUnits(px.toFixed(this.quoteDisplayDecimals), this.contracts[this.quote].tokenDetails.evmdecimals);
       const quantityToSend = utils.parseUnits(quantity.toFixed(this.baseDisplayDecimals), this.contracts[this.base].tokenDetails.evmdecimals);
       clientOrderIds.push(clientOrderId);

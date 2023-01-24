@@ -601,7 +601,7 @@ abstract class AbstractBot {
     const gasP = Math.ceil(gasPx.mul(105).div(100).toNumber());
     const optionsWithNonce = {gasLimit: 15000000, maxFeePerGas:gasP , maxPriorityFeePerGas:1 , nonce:0};
     if (highGasLimit) {
-      optionsWithNonce.gasLimit= 25000000;
+      optionsWithNonce.gasLimit= 15000000;
     }
     optionsWithNonce.nonce = provider.nonce++;
     return optionsWithNonce;
