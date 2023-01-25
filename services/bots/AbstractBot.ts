@@ -887,7 +887,7 @@ abstract class AbstractBot {
     }
   }
 
-  async cancelAll () {
+  async cancelAll (nbrofOrderstoCancel=30) {
     const orderIds =[];
     try {
 
@@ -899,7 +899,7 @@ abstract class AbstractBot {
         this.orderCount++;
         this.logger.warn (`${this.instanceName} Cancelling all outstanding orders, OrderNbr ${this.orderCount}`);
         // More than 20 orders in a cancel will probably run out of gas
-        const tx = await this.tradePair.cancelAllOrders(orderIds.slice(0, Math.min(20,orderIds.length)), await this.getOptions(this.contracts["SubNetProvider"] ,true));
+        const tx = await this.tradePair.cancelAllOrders(orderIds.slice(0, Math.min(nbrofOrderstoCancel, orderIds.length)), await this.getOptions(this.contracts["SubNetProvider"], true));
         //const tx = await this.race({ promise:oderCancel , count: this.orderCount} );
         //const orderLog = await tx.wait();
         //const orderLog =  await this.race({ promise: tx.wait(), count: this.orderCount} );

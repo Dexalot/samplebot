@@ -53,7 +53,6 @@ class LoadBot extends AbstractBot{
     if (this.status) {
       //Enable the next line if you need the bot to run continuously
       this.orderUptader = setTimeout( () => this.updateOrders(), this.interval );
-      this.updateOrders();
     } else {
       this.logger.warn (`${this.instanceName} Bot Status set to false, will not send orders`);
     }
@@ -64,21 +63,15 @@ class LoadBot extends AbstractBot{
       clearTimeout(this.orderUptader);
     }
 
-    await this.cancelAll();
+    await this.cancelAll(14);
     // this will refill the gas tank if running low
+    await this.cancelIndividualOrders(2);
+
     try {
-      // let i=0
-      // for (const order of this.orders.values()) {
-      //   await this.cancelOrder(order);
-      //   i++;
-      //   if (i>=2){ //only cancel 2 orders
-      //     break;
-      //   }
-      // }
+      await this.addSingleOrders(2);
+      await this.addLimitOrderList(14);
 
-    await this.addLimitOrderList();
-
-    this.logger.debug (`${JSON.stringify(this.getOrderBook())}`);
+      this.logger.debug (`${JSON.stringify(this.getOrderBook())}`);
 
   } catch (error){
     this.logger.error (`${this.instanceName} Error in UpdateOrders`, error);
@@ -89,9 +82,18 @@ class LoadBot extends AbstractBot{
   }
 }
 
+async cancelIndividualOrders (nbrofOrderstoCancel:number) {
+      let i=0
+      for (const order of this.orders.values()) {
+        await this.cancelOrder(order);
+        i++;
+        if (i>= nbrofOrderstoCancel){
+          break;
+        }
+      }
+}
 
-  async addLimitOrderList () {
-
+async generateOrders (nbrofOrdersToAdd:number, addToMap = true) {
     const clientOrderIds=[];
     const prices=[];
     const quantities= [];
@@ -100,7 +102,7 @@ class LoadBot extends AbstractBot{
     const marketpx = await this.getNewMarketPrice();
 
     //buy orders
-    for (let i=0; i<20; i++) {
+    for (let i=0; i<nbrofOrdersToAdd; i++) {
 
       const clientOrderId = await this.getClientOrderId(i)
       const pxdivisor = this.base ==='tALOT' ? 2000 : 20;
@@ -112,34 +114,56 @@ class LoadBot extends AbstractBot{
               : utils.randomFromIntervalPositive(0.5, 10, this.baseDisplayDecimals);
       const priceToSend = utils.parseUnits(px.toFixed(this.quoteDisplayDecimals), this.contracts[this.quote].tokenDetails.evmdecimals);
       const quantityToSend = utils.parseUnits(quantity.toFixed(this.baseDisplayDecimals), this.contracts[this.base].tokenDetails.evmdecimals);
+
+
       clientOrderIds.push(clientOrderId);
-
-
       prices.push(priceToSend);
       quantities.push(quantityToSend);
       sides.push(side);
       type2s.push(type2);
 
-      const order = this.makeOrder(this.account,
-        this.tradePairByte32,
-        '', // orderid not assigned by the smart contract yet
-        clientOrderId,
-        priceToSend,
-        0,
-        quantityToSend,
-        side, // 0-Buy
-        type, type2, // Limit, GTC
-        9, //PENDING status
-        0, 0, '', 0, 0, 0, 0 );
+      if (addToMap) {
+            const order = this.makeOrder(this.account,
+              this.tradePairByte32,
+              '', // orderid not assigned by the smart contract yet
+              clientOrderId,
+              priceToSend,
+              0,
+              quantityToSend,
+              side, // 0-Buy
+              type, type2, // Limit, GTC
+              9, //PENDING status
+              0, 0, '', 0, 0, 0, 0 );
 
-      this.addOrderToMap(order);
+            this.addOrderToMap(order);
+      }
 
     }
 
+    return {clientOrderIds, prices, quantities, sides, type2s };
+  }
+
+
+  async addSingleOrders (nbrofOrdersToAdd:number) {
+
+    const orders = await this.generateOrders(nbrofOrdersToAdd, false);
+
+    for (let i=0; i< orders.clientOrderIds.length; i++) {
+      await this.addOrder (orders.sides[i]
+      , BigNumber(utils.formatUnits(orders.quantities[i], this.contracts[this.base].tokenDetails.evmdecimals))
+      , BigNumber(utils.formatUnits(orders.prices[i], this.contracts[this.quote].tokenDetails.evmdecimals))
+      , 1, orders.type2s[i])
+    }
+  }
+
+  async addLimitOrderList (nbrofOrdersToAdd = 10) {
+
+    const orders = await this.generateOrders(nbrofOrdersToAdd, true);
+
     try {
 
-    const tx = await this.tradePair.addLimitOrderList( this.tradePairByte32,clientOrderIds,prices, quantities, sides,
-                     type2s, true,  await this.getOptions(this.contracts["SubNetProvider"]) );
+    const tx = await this.tradePair.addLimitOrderList( this.tradePairByte32, orders.clientOrderIds,orders.prices, orders.quantities, orders.sides,
+      orders.type2s, true,  await this.getOptions(this.contracts["SubNetProvider"]) );
     const orderLog = await tx.wait();
 
      //Add the order to the map quickly to be replaced by the event fired by the blockchain that will follow.
@@ -156,7 +180,7 @@ class LoadBot extends AbstractBot{
         }
       }
     } catch (error:any) {
-          for (const clientOrderId of clientOrderIds) {
+          for (const clientOrderId of orders.clientOrderIds) {
           //Need to remove the pending order from the memory if there is any error
             this.removeOrderByClOrdId(clientOrderId);
           }
