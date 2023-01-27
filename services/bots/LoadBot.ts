@@ -13,19 +13,13 @@ class LoadBot extends AbstractBot{
   protected quoteUsd= 1; //USDC
   protected capitalASideUSD=300;
 
-  constructor(botId:number, pairStr: string, privateKey: string) {
-    super(botId, pairStr, privateKey);
+  constructor(botId:number, pairStr: string, privateKey: string, ratelimit_token?: string) {
+    super(botId, pairStr, privateKey, ratelimit_token);
     // Do not rebalance the portfolio. The tokens are expected to be in the subnet already
     this.portfolioRebalanceAtStart= "N";
 
   }
 
-  async getEnvironments() {
-    this.environments=  (await axios.get(apiUrl + 'environments/')).data;
-    if (this.environments[1].chain_name === "Dexalot Subnet") {
-      this.environments[1].chain_instance = "http://18.119.75.43:9650/ext/bc/21Ths5Afqi5r4PaoV8r8cruGZWhN11y5rxvy89K8px7pKy3P8E/rpc"
-    }
-  }
 
   async saveBalancestoDb(balancesRefreshed: boolean): Promise<void> {
     this.logger.info (`${this.instanceName} Save Balances somewhere if needed`);

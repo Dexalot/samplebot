@@ -55,10 +55,11 @@ abstract class AbstractBot {
   protected contracts:any = {};
   protected washTradeCheck= true;
   private privateKey:any;
+  private ratelimit_token?:string;
   protected tokenDetails:any;
 
 
-  constructor(botId:number, pairStr: string, privateKey: string) {
+  constructor(botId:number, pairStr: string, privateKey: string, ratelimit_token?: string) {
       this.logger = getLogger("Bot");
       this.instanceName = botId + ":" +  pairStr;
       this.logger.info (`${this.instanceName} Base Class constructor`);
@@ -69,6 +70,7 @@ abstract class AbstractBot {
       this.privateKey= privateKey;
       this.orders =  new Map();
       this.orderbook = new OrderBook();
+      this.ratelimit_token = ratelimit_token;
 
       (axios.defaults.headers! as unknown as Record<string, any>).common['Origin'] = getConfig('DOMAIN_LINK');
 
@@ -129,7 +131,15 @@ abstract class AbstractBot {
     this.contracts[provider].nonce = await this.contracts[provider].provider.getTransactionCount(this.account);
   }
 
-
+  getProvider(url:string, ratelimit_token?: string){
+    if(ratelimit_token){
+      return new ethers.providers.StaticJsonRpcProvider({
+        url: url,
+        headers: {"x-rate-limit-token": ratelimit_token}
+      });
+    }
+    return new ethers.providers.StaticJsonRpcProvider(url);
+  }
   async initialize () : Promise<boolean> {
     if (!this.initialized) {
       this.config = (await this.getBotConfig());
@@ -140,8 +150,8 @@ abstract class AbstractBot {
         await this.getDeployments();
         await this.getTokenDetails();
 
-        this.contracts["MainnetProvider"] = { provider: new ethers.providers.StaticJsonRpcProvider(this.getEnvironment("mainnet").chain_instance), nonce: 0 };
-        this.contracts["SubNetProvider"] = { provider: new ethers.providers.StaticJsonRpcProvider(this.getEnvironment("subnet").chain_instance), nonce: 0 };
+        this.contracts["MainnetProvider"] = { provider: this.getProvider(this.getEnvironment("mainnet").chain_instance), nonce: 0 };
+        this.contracts["SubNetProvider"] = { provider: this.getProvider(this.getEnvironment("subnet").chain_instance,this.ratelimit_token), nonce: 0 };
         this.contracts["MainnetWallet"] =  new NonceManager(new ethers.Wallet(this.privateKey, this.contracts["MainnetProvider"].provider));
 
         const wal =new ethers.Wallet(this.privateKey, this.contracts["SubNetProvider"].provider);
