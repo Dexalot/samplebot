@@ -17,6 +17,7 @@ class LoadBot extends AbstractBot{
     super(botId, pairStr, privateKey, ratelimit_token);
     // Do not rebalance the portfolio. The tokens are expected to be in the subnet already
     this.portfolioRebalanceAtStart= "N";
+    this.washTradeCheck=false;
 
   }
 
@@ -65,8 +66,8 @@ class LoadBot extends AbstractBot{
       await this.addSingleOrders(2);
       await this.addLimitOrderList(14);
 
-      // await this.addSingleOrders(1, 1, 1000, 13); // Sell 1500 at 13
-      // await this.addLimitOrderList(100, 0); // 100 random BUY orders
+      //await this.addSingleOrders(1, 1, 10, 13); // Sell 1500 at 13
+      //await this.addLimitOrderList(100, 0); // 100 random BUY orders
 
       this.logger.debug (`${JSON.stringify(this.getOrderBook())}`);
 
@@ -114,11 +115,11 @@ async generateOrders (nbrofOrdersToAdd:number, addToMap = true, side = 99, quant
       if (quantity === 0) { // quantity not given
           switch (this.base) {
             case 'tALOT' : {
-              quantity =  utils.randomFromIntervalPositive(40, 300, this.baseDisplayDecimals);
+              quantity =  utils.randomFromIntervalPositive(5, 50, this.baseDisplayDecimals);
               break;
             }
             case 'tAVAX' : {
-              quantity =  utils.randomFromIntervalPositive(0.5, 5, this.baseDisplayDecimals);
+              quantity =  utils.randomFromIntervalPositive(0.05, 0.5, this.baseDisplayDecimals);
               break;
             }
             case 'WETH.e' : {
