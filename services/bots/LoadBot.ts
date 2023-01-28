@@ -66,7 +66,7 @@ class LoadBot extends AbstractBot{
       await this.addSingleOrders(2);
       await this.addLimitOrderList(14);
 
-      //await this.addSingleOrders(1, 1, 10, 13); // Sell 1500 at 13
+      //await this.addSingleOrders(1, 1, 5, 13); // Sell 1500 at 13
       //await this.addLimitOrderList(100, 0); // 100 random BUY orders
 
       this.logger.debug (`${JSON.stringify(this.getOrderBook())}`);
@@ -101,7 +101,9 @@ async generateOrders (nbrofOrdersToAdd:number, addToMap = true, side = 99, quant
     const blocknumber =
         (await this.contracts["SubNetProvider"].provider.getBlockNumber()) || 0;
 
-    //buy orders
+    let randomSide;
+
+
     for (let i=0; i<nbrofOrdersToAdd; i++) {
 
       const clientOrderId = await this.getClientOrderId(blocknumber, i)
@@ -131,7 +133,9 @@ async generateOrders (nbrofOrdersToAdd:number, addToMap = true, side = 99, quant
 
       if (side >  1 ) { // if side is not given
         px = i%2==0 ? marketpx.minus(i/pxdivisor)  : marketpx.plus(i/pxdivisor);
-        side = i%2;
+        randomSide = i%2;
+      } else {
+        randomSide = side;
       }
 
       const type = 1;
@@ -142,7 +146,7 @@ async generateOrders (nbrofOrdersToAdd:number, addToMap = true, side = 99, quant
       clientOrderIds.push(clientOrderId);
       prices.push(priceToSend);
       quantities.push(quantityToSend);
-      sides.push(side);
+      sides.push(randomSide);
       type2s.push(type2);
 
       if (addToMap) {
@@ -153,7 +157,7 @@ async generateOrders (nbrofOrdersToAdd:number, addToMap = true, side = 99, quant
               priceToSend,
               0,
               quantityToSend,
-              side, // 0-Buy
+              randomSide, // 0-Buy
               type, type2, // Limit, GTC
               9, //PENDING status
               0, 0, '', 0, 0, 0, 0 );
