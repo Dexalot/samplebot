@@ -1062,30 +1062,34 @@ abstract class AbstractBot {
     const promises: any = [];
     const orders: any = [];
 
-    //let j=0;
-    const batch = this.orders.size%20 + 1;
+    const batchSize = 20
+
+    const batch = this.orders.size/batchSize;
+    const remainder = this.orders.size%batchSize
+
+    this.logger.debug (`${this.instanceName} Total Open orders:${this.orders.size}`);
 
     for (const order of this.orders.values()) {
        orders.push(order);
     }
 
     for (let j = 0 ; j < batch ; j++ ) {
-
-      for (let i = 0; i < 20; i++) {
-        promises.push(this.tradePair.getOrder(orders[i].id));
-
-
-      try {
-          const results = await Promise.all(promises);
-         // for (let i = 0; i < 20; i++) {
-          this.checkOrderInChain(orders[i], results[i])
-          this.logger.debug (`${this.instanceName} checkOrdersInChain: ${orders[i].side === 0 ? 'BUY' :'SELL'} ${orders[i].quantity.toString()} ${this.base} @ ${orders[i].price.toString()} ${utils.statusMap[orders[i].status]}`);
-         // }
-          orders.splice(i,1);
-      } catch (error) {
-        throw new Error("Could not fetch order status");
+      promises.length=0;
+      for (let i = 0; i < (j===Math.floor(batch) ? remainder : batchSize); i++) {
+        promises.push(this.tradePair.getOrder(orders[i+ j*batchSize].id));
       }
-  }
+      try {
+         const results = await Promise.all(promises);
+         for (let i = 0; i < results.length; i++) {
+          this.checkOrderInChain(orders[i+ j*batchSize], results[i])
+          this.logger.debug (`${this.instanceName} checkOrdersInChain: ${orders[i+ j*batchSize].side === 0 ? 'BUY' :'SELL'} ${orders[i+ j*batchSize].quantity.toString()}
+                ${this.base} @ ${orders[i+ j*batchSize].price.toString()} ${utils.statusMap[orders[i+ j*batchSize].status]}`);
+         }
+      } catch (error) {
+        console.log(error);
+        throw new Error( "Could not fetch order status");
+      }
+
   }
 
   }
