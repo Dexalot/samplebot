@@ -13,6 +13,7 @@ import OrderBook from "./orderbook";
 import ERC20ABI from '../../artifacts/contracts/ERC20.json';
 import OrderBookRecordRaw from "../../models/orderBookRecordRaw";
 import OrderBookRaw from "../../models/orderBookRaw";
+import Nonce from "./Nonce";
 const apiUrl =  getConfig('API_URL') + "trading/";
 const ADDRESS0 ='0x0000000000000000000000000000000000000000000000000000000000000000';
 
@@ -448,8 +449,8 @@ abstract class AbstractBot {
         return;
       }
 
-      const clientOrderId = await this.getClientOrderId();
-
+      // const clientOrderId = await this.getClientOrderId();
+      const clientOrderId = utils.fromUtf8(Nonce.getNonce().toString());
       let price = px;
       let quantity = qty;
       try {

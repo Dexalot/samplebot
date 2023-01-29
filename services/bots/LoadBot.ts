@@ -58,13 +58,13 @@ class LoadBot extends AbstractBot{
       clearTimeout(this.orderUptader);
     }
 
-    await this.cancelAll(100);
+    //await this.cancelAll(100);
     // // this will refill the gas tank if running low
-    // await this.cancelIndividualOrders(2);
+    await this.cancelIndividualOrders(10);
 
     try {
-      // await this.addSingleOrders(2);
-      //await this.addLimitOrderList(20);
+      await this.addSingleOrders(10);
+      // await this.addLimitOrderList(20);
 
       // await this.addSingleOrders(1, 1, 10000, 0.15); // Sell 1500 at 13
       // await this.addSingleOrders(1, 0, 10000, 0.17); // Buy 1500 at 13
@@ -87,13 +87,15 @@ class LoadBot extends AbstractBot{
 
 async cancelIndividualOrders (nbrofOrderstoCancel:number) {
       let i=0
+      let promises = [];
       for (const order of this.orders.values()) {
-        await this.cancelOrder(order);
+        promises.push(this.cancelOrder(order));
         i++;
         if (i>= nbrofOrderstoCancel){
           break;
         }
       }
+      await Promise.all(promises);
 }
 
 async generateOrders (nbrofOrdersToAdd:number, addToMap = true, side = 99, quantity=0, price =0) {
@@ -180,12 +182,15 @@ async generateOrders (nbrofOrdersToAdd:number, addToMap = true, side = 99, quant
 
     const orders = await this.generateOrders(nbrofOrdersToAdd, false, side, quantity, price);
 
+    let promises = [];
     for (let i=0; i< orders.clientOrderIds.length; i++) {
-      await this.addOrder (orders.sides[i]
+      promises.push(this.addOrder (orders.sides[i]
       , BigNumber(utils.formatUnits(orders.quantities[i], this.contracts[this.base].tokenDetails.evmdecimals))
       , BigNumber(utils.formatUnits(orders.prices[i], this.contracts[this.quote].tokenDetails.evmdecimals))
-      , 1, orders.type2s[i])
+      , 1, orders.type2s[i]))
     }
+
+    await Promise.all(promises);
   }
 
   async addLimitOrderList (nbrofOrdersToAdd = 10, side = 99, quantity=0, price =0) {
