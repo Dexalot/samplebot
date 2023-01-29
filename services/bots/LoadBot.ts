@@ -58,15 +58,20 @@ class LoadBot extends AbstractBot{
       clearTimeout(this.orderUptader);
     }
 
-    await this.cancelAll(14);
-    // this will refill the gas tank if running low
-    await this.cancelIndividualOrders(2);
+    await this.cancelAll(10);
+    // // this will refill the gas tank if running low
+    // await this.cancelIndividualOrders(2);
 
     try {
-      await this.addSingleOrders(2);
-      await this.addLimitOrderList(14);
+      // await this.addSingleOrders(2);
+      await this.addLimitOrderList(20);
 
-      //await this.addSingleOrders(1, 1, 5, 13); // Sell 1500 at 13
+      // await this.addSingleOrders(1, 1, 10000, 0.15); // Sell 1500 at 13
+      // await this.addSingleOrders(1, 0, 10000, 0.17); // Buy 1500 at 13
+
+      // await this.addSingleOrders(1, 1, 15, 15); // Sell 1500 at 13
+      // await this.addSingleOrders(1, 0, 20, 17); // Buy 1500 at 13
+
       //await this.addLimitOrderList(100, 0); // 100 random BUY orders
 
       this.logger.debug (`${JSON.stringify(this.getOrderBook())}`);

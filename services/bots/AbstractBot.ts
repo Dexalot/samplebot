@@ -613,7 +613,7 @@ abstract class AbstractBot {
   async getOptions (provider:any = this.contracts["SubNetProvider"], gasEstimate:BigNumberEthers = BigNumberEthers.from(300000)) {
     const gasPx= await this.getGasPrice(provider);
     const maxFeePerGas = Math.ceil(gasPx.mul(105).div(100).toNumber());
-    const gasLimit = Math.min(gasEstimate.mul(120).div(100).toNumber(), 30000000) // Block Gas Limit 30M
+    const gasLimit = Math.min(gasEstimate.mul(140).div(100).toNumber(), 30000000) // Block Gas Limit 30M
     const optionsWithNonce = {gasLimit, maxFeePerGas , maxPriorityFeePerGas:1 , nonce:0};
 
     optionsWithNonce.nonce = provider.nonce++;
