@@ -13,7 +13,6 @@ import OrderBook from "./orderbook";
 import ERC20ABI from '../../artifacts/contracts/ERC20.json';
 import OrderBookRecordRaw from "../../models/orderBookRecordRaw";
 import OrderBookRaw from "../../models/orderBookRaw";
-import Nonce from "./Nonce";
 const apiUrl =  getConfig('API_URL') + "trading/";
 const ADDRESS0 ='0x0000000000000000000000000000000000000000000000000000000000000000';
 
@@ -401,7 +400,7 @@ abstract class AbstractBot {
 
     try {
 
-    const tx = await this.tradePair.addLimitOrderList( this.tradePairByte32,clientOrderIds,prices,quantities,sides,type2s,true);
+    const tx = await this.tradePair.addLimitOrderList( this.tradePairByte32,clientOrderIds,prices,quantities,sides,type2s);
     const orderLog = await tx.wait();
 
      //Add the order to the map quickly to be replaced by the event fired by the blockchain that will follow.
@@ -411,7 +410,8 @@ abstract class AbstractBot {
             if (_log.event === 'OrderStatusChanged') {
               if (_log.args.traderaddress === this.account && _log.args.pair === this.tradePairByte32) {
                 await this.processOrders(_log.args.version, this.account, _log.args.pair, _log.args.orderId,  _log.args.clientOrderId, _log.args.price, _log.args.totalamount
-                  , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee , _log) ;
+                  , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee, _log.args.code
+                  , _log) ;
               }
             }
           }
@@ -449,8 +449,8 @@ abstract class AbstractBot {
         return;
       }
 
-      // const clientOrderId = await this.getClientOrderId();
-      const clientOrderId = utils.fromUtf8(Nonce.getNonce().toString());
+      const clientOrderId = await this.getClientOrderId();
+
       let price = px;
       let quantity = qty;
       try {
@@ -547,7 +547,7 @@ abstract class AbstractBot {
                   if (_log.event === 'OrderStatusChanged') {
                     if (_log.args.traderaddress === this.account && _log.args.pair === this.tradePairByte32) {
                       await this.processOrders(_log.args.version, this.account, _log.args.pair, _log.args.orderId,  _log.args.clientOrderId, _log.args.price, _log.args.totalamount
-                        , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee , _log) ;
+                        , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee, _log.args.code , _log) ;
                     }
                   }
                 }
@@ -614,7 +614,7 @@ abstract class AbstractBot {
   async getOptions (provider:any = this.contracts["SubNetProvider"], gasEstimate:BigNumberEthers = BigNumberEthers.from(300000)) {
     const gasPx= await this.getGasPrice(provider);
     const maxFeePerGas = Math.ceil(gasPx.mul(105).div(100).toNumber());
-    const gasLimit = Math.min(gasEstimate.mul(140).div(100).toNumber(), 30000000) // Block Gas Limit 30M
+    const gasLimit = Math.min(gasEstimate.mul(102).div(100).toNumber(), 30000000) // Block Gas Limit 30M
     const optionsWithNonce = {gasLimit, maxFeePerGas , maxPriorityFeePerGas:1 , nonce:0};
 
     optionsWithNonce.nonce = provider.nonce++;
@@ -646,12 +646,11 @@ abstract class AbstractBot {
   }
 
 
-  async getAddOrderListGasEstimate(clientOrderIds: string[], prices:BigNumberEthers[] ,quantities:BigNumberEthers[],sides:number[], type2s:number[], revertOnPO:boolean) {
+  async getAddOrderListGasEstimate(clientOrderIds: string[], prices:BigNumberEthers[] ,quantities:BigNumberEthers[],sides:number[], type2s:number[]) {
       return this.tradePair.estimateGas.addLimitOrderList(
         this.tradePairByte32,
         clientOrderIds,prices,quantities, sides,
-        type2s,
-        revertOnPO
+        type2s
     );
   }
 
@@ -663,7 +662,7 @@ abstract class AbstractBot {
   }
 
   async getCancelAllOrdersGasEstimate(orderIds:string[] ) {
-    return this.tradePair.estimateGas.cancelAllOrders(
+    return this.tradePair.estimateGas.cancelOrderList(
       orderIds
   );
 }
@@ -818,7 +817,7 @@ abstract class AbstractBot {
   }
 
   async processOrders ( version:any , traderaddress:any, pair:any, orderId:any, clientOrderId: any, price:any, totalamount:any, quantity:any, side:any, type1:any
-    , type2:any, status:any, quantityfilled:any, totalfee:any , event:any) {
+    , type2:any, status:any, quantityfilled:any, totalfee:any, code:any , event:any) {
     try {
 
       if (pair === this.tradePairByte32) {
@@ -938,7 +937,7 @@ abstract class AbstractBot {
         const gasest= await this.getCancelAllOrdersGasEstimate(orderIds)
 
         //orderIds.slice(0, Math.min(nbrofOrderstoCancel, orderIds.length))
-        const tx = await this.tradePair.cancelAllOrders(orderIds, await this.getOptions(this.contracts["SubNetProvider"], gasest));
+        const tx = await this.tradePair.cancelOrderList(orderIds, await this.getOptions(this.contracts["SubNetProvider"], gasest));
         //const tx = await this.race({ promise:oderCancel , count: this.orderCount} );
         //const orderLog = await tx.wait();
         //const orderLog =  await this.race({ promise: tx.wait(), count: this.orderCount} );
@@ -949,7 +948,7 @@ abstract class AbstractBot {
               if (_log.event === 'OrderStatusChanged') {
                 if (_log.args.traderaddress === this.account && _log.args.pair === this.tradePairByte32) {
                   await this.processOrders(_log.args.version, this.account, _log.args.pair, _log.args.orderId,  _log.args.clientOrderId, _log.args.price, _log.args.totalamount
-                    , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee , _log) ;
+                    , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee, _log.args.code , _log) ;
                 }
               }
             }
@@ -992,7 +991,7 @@ abstract class AbstractBot {
                 if (_log.event === 'OrderStatusChanged') {
                   if (_log.args.traderaddress === this.account && _log.args.pair === this.tradePairByte32) {
                     await this.processOrders(_log.args.version, this.account, _log.args.pair, _log.args.orderId,  _log.args.clientOrderId, _log.args.price, _log.args.totalamount
-                      , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee , _log) ;
+                      , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee, _log.args.code , _log) ;
                   }
                 }
               }
@@ -1062,36 +1061,20 @@ abstract class AbstractBot {
   async checkOrdersInChain (){
     const promises: any = [];
     const orders: any = [];
-
-    const batchSize = 20
-
-    const batch = this.orders.size/batchSize;
-    const remainder = this.orders.size%batchSize
-
-    this.logger.debug (`${this.instanceName} Total Open orders:${this.orders.size}`);
-
     for (const order of this.orders.values()) {
        orders.push(order);
+       promises.push(this.tradePair.getOrder(order.id));
     }
-
-    for (let j = 0 ; j < batch ; j++ ) {
-      promises.length=0;
-      for (let i = 0; i < (j===Math.floor(batch) ? remainder : batchSize); i++) {
-        promises.push(this.tradePair.getOrder(orders[i+ j*batchSize].id));
-      }
-      try {
-         const results = await Promise.all(promises);
-         for (let i = 0; i < results.length; i++) {
-          this.checkOrderInChain(orders[i+ j*batchSize], results[i])
-          this.logger.debug (`${this.instanceName} checkOrdersInChain: ${orders[i+ j*batchSize].side === 0 ? 'BUY' :'SELL'} ${orders[i+ j*batchSize].quantity.toString()}
-                ${this.base} @ ${orders[i+ j*batchSize].price.toString()} ${utils.statusMap[orders[i+ j*batchSize].status]}`);
-         }
-      } catch (error) {
-        console.log(error);
-        throw new Error( "Could not fetch order status");
+    try {
+      const results = await Promise.all(promises);
+      for (let i = 0; i < results.length; i++) {
+        this.checkOrderInChain(orders[i], results[i])
+        this.logger.debug (`${this.instanceName} checkOrdersInChain: ${orders[i].side === 0 ? 'BUY' :'SELL'} ${orders[i].quantity.toString()} ${this.base} @ ${orders[i].price.toString()} ${utils.statusMap[orders[i].status]}`);
       }
 
-  }
+    } catch (error) {
+      throw new Error("Could not fetch order status");
+    }
 
   }
 

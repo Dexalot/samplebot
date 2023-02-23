@@ -4,6 +4,7 @@ import BigNumber from "bignumber.js";
 import AbstractBot from "./AbstractBot";
 import { getConfig } from "../../config";
 import { Performance } from "perf_hooks";
+import axios from "axios";
 
 const apiUrl =  getConfig('API_URL') + "trading/";
 class LoadBot extends AbstractBot{
@@ -31,7 +32,7 @@ class LoadBot extends AbstractBot{
     if (initializing){
       await this.getNewMarketPrice();
 
-      this.interval =  5000 //Min 10 seconds
+      this.interval =  15000 //Min 10 seconds
 
       this.minTradeAmnt = this.pairObject.mintrade_amnt * 1.1 ;
       this.maxTradeAmnt = this.pairObject.mintrade_amnt * 5;
@@ -42,7 +43,6 @@ class LoadBot extends AbstractBot{
     }
 
   }
-
 
   async startOrderUpdater  ()  {
     if (this.status) {
@@ -58,19 +58,19 @@ class LoadBot extends AbstractBot{
       clearTimeout(this.orderUptader);
     }
 
-    //await this.cancelAll(100);
+    await this.cancelAll(100);
     // // this will refill the gas tank if running low
-    await this.cancelIndividualOrders(10);
+    // await this.cancelIndividualOrders(10);
 
     try {
-      await this.addSingleOrders(10);
+       //await this.addSingleOrders(3);
       // await this.addLimitOrderList(20);
 
-      // await this.addSingleOrders(1, 1, 10000, 0.15); // Sell 1500 at 13
-      // await this.addSingleOrders(1, 0, 10000, 0.17); // Buy 1500 at 13
+      // await this.addSingleOrders(1, 1, 1000, 0.15); // Sell 1500 at 13
+      // await this.addSingleOrders(1, 0, 1000, 0.17); // Buy 1500 at 13
 
-      // await this.addSingleOrders(1, 1, 15, 15); // Sell 1500 at 13
-      // await this.addSingleOrders(1, 0, 20, 17); // Buy 1500 at 13
+      // await this.addSingleOrders(1, 1, 5, 15); // Sell 1500 at 13
+      // await this.addSingleOrders(1, 0, 5, 17); // Buy 1500 at 13
 
       //await this.addLimitOrderList(100, 0); // 100 random BUY orders
 
@@ -87,7 +87,7 @@ class LoadBot extends AbstractBot{
 
 async cancelIndividualOrders (nbrofOrderstoCancel:number) {
       let i=0
-      let promises = [];
+      const promises = [];
       for (const order of this.orders.values()) {
         promises.push(this.cancelOrder(order));
         i++;
@@ -182,7 +182,7 @@ async generateOrders (nbrofOrdersToAdd:number, addToMap = true, side = 99, quant
 
     const orders = await this.generateOrders(nbrofOrdersToAdd, false, side, quantity, price);
 
-    let promises = [];
+    const promises = [];
     for (let i=0; i< orders.clientOrderIds.length; i++) {
       promises.push(this.addOrder (orders.sides[i]
       , BigNumber(utils.formatUnits(orders.quantities[i], this.contracts[this.base].tokenDetails.evmdecimals))
@@ -202,12 +202,12 @@ async generateOrders (nbrofOrdersToAdd:number, addToMap = true, side = 99, quant
     try {
 
     const gasest= await this.getAddOrderListGasEstimate(orders.clientOrderIds, orders.prices, orders.quantities, orders.sides,
-      orders.type2s, false);
+      orders.type2s);
 
     this.logger.warn (`${this.instanceName} Gas Est ${gasest.toString()}`);
 
     const tx = await this.tradePair.addLimitOrderList( this.tradePairByte32, orders.clientOrderIds,orders.prices, orders.quantities, orders.sides,
-        orders.type2s, false,  await this.getOptions(this.contracts["SubNetProvider"], gasest) );
+        orders.type2s,  await this.getOptions(this.contracts["SubNetProvider"], gasest) );
     const orderLog = await tx.wait();
 
      //Add the order to the map quickly to be replaced by the event fired by the blockchain that will follow.
@@ -217,7 +217,7 @@ async generateOrders (nbrofOrdersToAdd:number, addToMap = true, side = 99, quant
             if (_log.event === 'OrderStatusChanged') {
               if (_log.args.traderaddress === this.account && _log.args.pair === this.tradePairByte32) {
                 await this.processOrders(_log.args.version, this.account, _log.args.pair, _log.args.orderId,  _log.args.clientOrderId, _log.args.price, _log.args.totalamount
-                  , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee , _log) ;
+                  , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee, _log.args.code , _log) ;
               }
             }
           }
@@ -329,7 +329,6 @@ async generateOrders (nbrofOrdersToAdd:number, addToMap = true, side = 99, quant
       return this.initialDepositQuote;
     }
   }
-
 
 
 }
