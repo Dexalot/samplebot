@@ -7,4 +7,3 @@ Procfile
 .env.*
 package-lock.json
 /logs-*
-!.env.multiapp*

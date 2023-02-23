@@ -2,6 +2,11 @@
 import utils from "../utils";
 import BigNumber from "bignumber.js";
 import AbstractBot from "./AbstractBot";
+import { getConfig } from "../../config";
+import { Performance } from "perf_hooks";
+import axios from "axios";
+
+const apiUrl =  getConfig('API_URL') + "trading/";
 class LoadBot extends AbstractBot{
 
   protected marketPrice =new BigNumber(17); //AVAX/USDC
@@ -9,12 +14,14 @@ class LoadBot extends AbstractBot{
   protected quoteUsd= 1; //USDC
   protected capitalASideUSD=300;
 
-  constructor(botId:number, pairStr: string, privateKey: string) {
-    super(botId, pairStr, privateKey);
+  constructor(botId:number, pairStr: string, privateKey: string, ratelimit_token?: string) {
+    super(botId, pairStr, privateKey, ratelimit_token);
     // Do not rebalance the portfolio. The tokens are expected to be in the subnet already
     this.portfolioRebalanceAtStart= "N";
+    this.washTradeCheck=false;
 
   }
+
 
   async saveBalancestoDb(balancesRefreshed: boolean): Promise<void> {
     this.logger.info (`${this.instanceName} Save Balances somewhere if needed`);
@@ -25,13 +32,10 @@ class LoadBot extends AbstractBot{
     if (initializing){
       await this.getNewMarketPrice();
 
-      this.interval =  10000 //Min 10 seconds
+      this.interval =  15000 //Min 10 seconds
 
       this.minTradeAmnt = this.pairObject.mintrade_amnt * 1.1 ;
       this.maxTradeAmnt = this.pairObject.mintrade_amnt * 5;
-
-      // PNL  TO KEEP TRACK OF PNL , FEE & TCOST  etc
-      //this.PNL = new PNL(getConfig('NODE_ENV_SETTINGS'), this.instanceName, this.base, this.quote, this.config, this.account);
 
       return true;
     } else {
@@ -40,13 +44,10 @@ class LoadBot extends AbstractBot{
 
   }
 
-
   async startOrderUpdater  ()  {
     if (this.status) {
-      // Enable the next line if you need the bot to run continuously
-      // this.orderUptader = setTimeout( () => this.updateOrders(), this.interval );
-      // Comment out if you need the bot to run continuously
-      this.updateOrders();
+      //Enable the next line if you need the bot to run continuously
+      this.orderUptader = setTimeout( () => this.updateOrders(), this.interval );
     } else {
       this.logger.warn (`${this.instanceName} Bot Status set to false, will not send orders`);
     }
@@ -57,85 +58,156 @@ class LoadBot extends AbstractBot{
       clearTimeout(this.orderUptader);
     }
 
-    //await this.cancelAll();
+    await this.cancelAll(100);
+    // // this will refill the gas tank if running low
+    // await this.cancelIndividualOrders(10);
 
-    // this will refill the gas tank if running low
     try {
-      let i=0
-      for (const order of this.orders.values()) {
-        await this.cancelOrder(order);
-        i++;
-        if (i>=2){ //only cancel 2 orders
-          break;
-        }
-      }
+       //await this.addSingleOrders(3);
+      // await this.addLimitOrderList(20);
 
-    await this.addLimitOrderList();
+      // await this.addSingleOrders(1, 1, 1000, 0.15); // Sell 1500 at 13
+      // await this.addSingleOrders(1, 0, 1000, 0.17); // Buy 1500 at 13
 
-    this.logger.debug (`${JSON.stringify(this.getOrderBook())}`);
+      // await this.addSingleOrders(1, 1, 5, 15); // Sell 1500 at 13
+      // await this.addSingleOrders(1, 0, 5, 17); // Buy 1500 at 13
+
+      //await this.addLimitOrderList(100, 0); // 100 random BUY orders
+
+      this.logger.debug (`${JSON.stringify(this.getOrderBook())}`);
 
   } catch (error){
     this.logger.error (`${this.instanceName} Error in UpdateOrders`, error);
     //process.exit(1);
   } finally {
-    // Sleep 5 seconds
-    await utils.sleep(5000);
     //  Enable the next line if you need the bot to run continuously
     this.startOrderUpdater();
   }
 }
 
+async cancelIndividualOrders (nbrofOrderstoCancel:number) {
+      let i=0
+      const promises = [];
+      for (const order of this.orders.values()) {
+        promises.push(this.cancelOrder(order));
+        i++;
+        if (i>= nbrofOrderstoCancel){
+          break;
+        }
+      }
+      await Promise.all(promises);
+}
 
-  async addLimitOrderList () {
-
+async generateOrders (nbrofOrdersToAdd:number, addToMap = true, side = 99, quantity=0, price =0) {
     const clientOrderIds=[];
     const prices=[];
     const quantities= [];
     const sides =[];
     const type2s =[];
     const marketpx = await this.getNewMarketPrice();
+    const blocknumber =
+        (await this.contracts["SubNetProvider"].provider.getBlockNumber()) || 0;
 
-    //buy orders
-    for (let i=0; i<6; i++) {
+    let randomSide;
 
-      const clientOrderId = await this.getClientOrderId(i)
-      const pxdivisor = this.base ==='tALOT' ? 200 : 20;
-      const px = i%2==0 ? marketpx.minus(i/pxdivisor)  : marketpx.plus(i/pxdivisor);
-      const side = i%2;
+
+    for (let i=0; i<nbrofOrdersToAdd; i++) {
+
+      const clientOrderId = await this.getClientOrderId(blocknumber, i)
+      const pxdivisor = this.base ==='tALOT' ? 2000 : 20;
+      let px = marketpx;
+
+      if (price > 0) {
+        px = BigNumber(price);
+      }
+
+      if (quantity === 0) { // quantity not given
+          switch (this.base) {
+            case 'tALOT' : {
+              quantity =  utils.randomFromIntervalPositive(5, 50, this.baseDisplayDecimals);
+              break;
+            }
+            case 'tAVAX' : {
+              quantity =  utils.randomFromIntervalPositive(0.05, 0.5, this.baseDisplayDecimals);
+              break;
+            }
+            case 'WETH.e' : {
+              quantity =  utils.randomFromIntervalPositive(0.03, 0.05, this.baseDisplayDecimals);
+              break;
+            }
+          }
+      }
+
+      if (side >  1 ) { // if side is not given
+        px = i%2==0 ? marketpx.minus(i/pxdivisor)  : marketpx.plus(i/pxdivisor);
+        randomSide = i%2;
+      } else {
+        randomSide = side;
+      }
+
       const type = 1;
-      const type2 =0;
-      const quantity = this.base ==='tALOT' ? utils.randomFromIntervalPositive(40, 350, this.baseDisplayDecimals)
-              : utils.randomFromIntervalPositive(0.5, 100, this.baseDisplayDecimals);
+      const type2 = 0;
       const priceToSend = utils.parseUnits(px.toFixed(this.quoteDisplayDecimals), this.contracts[this.quote].tokenDetails.evmdecimals);
       const quantityToSend = utils.parseUnits(quantity.toFixed(this.baseDisplayDecimals), this.contracts[this.base].tokenDetails.evmdecimals);
+
       clientOrderIds.push(clientOrderId);
-
-
       prices.push(priceToSend);
       quantities.push(quantityToSend);
-      sides.push(side);
+      sides.push(randomSide);
       type2s.push(type2);
 
-      const order = this.makeOrder(this.account,
-        this.tradePairByte32,
-        '', // orderid not assigned by the smart contract yet
-        clientOrderId,
-        priceToSend,
-        0,
-        quantityToSend,
-        side, // 0-Buy
-        type, type2, // Limit, GTC
-        9, //PENDING status
-        0, 0, '', 0, 0, 0, 0 );
+      if (addToMap) {
+            const order = this.makeOrder(this.account,
+              this.tradePairByte32,
+              '', // orderid not assigned by the smart contract yet
+              clientOrderId,
+              priceToSend,
+              0,
+              quantityToSend,
+              randomSide, // 0-Buy
+              type, type2, // Limit, GTC
+              9, //PENDING status
+              0, 0, '', 0, 0, 0, 0 );
 
-      this.addOrderToMap(order);
+            this.addOrderToMap(order);
+      }
 
     }
 
+    return {clientOrderIds, prices, quantities, sides, type2s };
+  }
+
+
+  async addSingleOrders (nbrofOrdersToAdd:number, side = 99, quantity=0, price =0) {
+
+    const orders = await this.generateOrders(nbrofOrdersToAdd, false, side, quantity, price);
+
+    const promises = [];
+    for (let i=0; i< orders.clientOrderIds.length; i++) {
+      promises.push(this.addOrder (orders.sides[i]
+      , BigNumber(utils.formatUnits(orders.quantities[i], this.contracts[this.base].tokenDetails.evmdecimals))
+      , BigNumber(utils.formatUnits(orders.prices[i], this.contracts[this.quote].tokenDetails.evmdecimals))
+      , 1, orders.type2s[i]))
+    }
+
+    await Promise.all(promises);
+  }
+
+  async addLimitOrderList (nbrofOrdersToAdd = 10, side = 99, quantity=0, price =0) {
+    const startTime = performance.now();
+    const orders = await this.generateOrders(nbrofOrdersToAdd, true, side, quantity, price );
+    const endTime2 = performance.now();
+
+    console.log(`Generate Orders took ${(endTime2 - startTime)/1000} seconds`)
     try {
 
-    const tx = await this.tradePair.addLimitOrderList( this.tradePairByte32,clientOrderIds,prices, quantities, sides,
-                     type2s, true,  await this.getOptions(this.contracts["SubNetProvider"]) );
+    const gasest= await this.getAddOrderListGasEstimate(orders.clientOrderIds, orders.prices, orders.quantities, orders.sides,
+      orders.type2s);
+
+    this.logger.warn (`${this.instanceName} Gas Est ${gasest.toString()}`);
+
+    const tx = await this.tradePair.addLimitOrderList( this.tradePairByte32, orders.clientOrderIds,orders.prices, orders.quantities, orders.sides,
+        orders.type2s,  await this.getOptions(this.contracts["SubNetProvider"], gasest) );
     const orderLog = await tx.wait();
 
      //Add the order to the map quickly to be replaced by the event fired by the blockchain that will follow.
@@ -145,14 +217,14 @@ class LoadBot extends AbstractBot{
             if (_log.event === 'OrderStatusChanged') {
               if (_log.args.traderaddress === this.account && _log.args.pair === this.tradePairByte32) {
                 await this.processOrders(_log.args.version, this.account, _log.args.pair, _log.args.orderId,  _log.args.clientOrderId, _log.args.price, _log.args.totalamount
-                  , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee , _log) ;
+                  , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee, _log.args.code , _log) ;
               }
             }
           }
         }
       }
     } catch (error:any) {
-          for (const clientOrderId of clientOrderIds) {
+          for (const clientOrderId of orders.clientOrderIds) {
           //Need to remove the pending order from the memory if there is any error
             this.removeOrderByClOrdId(clientOrderId);
           }
@@ -173,6 +245,9 @@ class LoadBot extends AbstractBot{
             }
           }
 
+        } finally {
+          const endTime = performance.now();
+          console.log(`Send List Orders took ${(endTime - endTime2)/1000} seconds`)
         }
 
   }
@@ -189,9 +264,30 @@ class LoadBot extends AbstractBot{
   // Update the marketPrice from an outside source
   async getNewMarketPrice() {
       try {
-        const pxDivizor = this.base ==='tALOT' ? 100 : 1;
-        const px = utils.randomFromIntervalPositive(16/pxDivizor, 16.3/pxDivizor, this.quoteDisplayDecimals)
+
+        let px ;
+
+        switch (this.base) {
+          case 'tALOT' : {
+            px =  utils.randomFromIntervalPositive(0.16, 0.162, this.quoteDisplayDecimals);
+            break;
+          }
+          case 'tAVAX' : {
+            px =  utils.randomFromIntervalPositive(16, 16.3, this.quoteDisplayDecimals);
+            break;
+          }
+          case 'WETH.e' : {
+            px =  utils.randomFromIntervalPositive(1600, 1620, this.quoteDisplayDecimals);
+            break;
+          }
+          default : {
+            px =  utils.randomFromIntervalPositive(16, 16.3, this.quoteDisplayDecimals);
+          }
+        }
+
+
         this.setMarketPrice(px);
+
         // this.baseUsd = PriceService.prices[this.priceSymbolPair.base];
         // this.quoteUsd = PriceService.prices[this.priceSymbolPair.quote];
 
@@ -233,7 +329,6 @@ class LoadBot extends AbstractBot{
       return this.initialDepositQuote;
     }
   }
-
 
 
 }

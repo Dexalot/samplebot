@@ -55,10 +55,11 @@ abstract class AbstractBot {
   protected contracts:any = {};
   protected washTradeCheck= true;
   private privateKey:any;
+  private ratelimit_token?:string;
   protected tokenDetails:any;
 
 
-  constructor(botId:number, pairStr: string, privateKey: string) {
+  constructor(botId:number, pairStr: string, privateKey: string, ratelimit_token?: string) {
       this.logger = getLogger("Bot");
       this.instanceName = botId + ":" +  pairStr;
       this.logger.info (`${this.instanceName} Base Class constructor`);
@@ -69,8 +70,10 @@ abstract class AbstractBot {
       this.privateKey= privateKey;
       this.orders =  new Map();
       this.orderbook = new OrderBook();
+      this.ratelimit_token = ratelimit_token;
 
       (axios.defaults.headers! as unknown as Record<string, any>).common['Origin'] = getConfig('DOMAIN_LINK');
+      (axios.defaults.headers! as unknown as Record<string, any>).common['User-Agent'] ="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36"
 
   }
 
@@ -129,7 +132,15 @@ abstract class AbstractBot {
     this.contracts[provider].nonce = await this.contracts[provider].provider.getTransactionCount(this.account);
   }
 
-
+  getProvider(url:string, ratelimit_token?: string){
+    if(ratelimit_token){
+      return new ethers.providers.StaticJsonRpcProvider({
+        url: url,
+        headers: {"x-rate-limit-token": ratelimit_token}
+      });
+    }
+    return new ethers.providers.StaticJsonRpcProvider(url);
+  }
   async initialize () : Promise<boolean> {
     if (!this.initialized) {
       this.config = (await this.getBotConfig());
@@ -140,8 +151,8 @@ abstract class AbstractBot {
         await this.getDeployments();
         await this.getTokenDetails();
 
-        this.contracts["MainnetProvider"] = { provider: new ethers.providers.StaticJsonRpcProvider(this.getEnvironment("mainnet").chain_instance), nonce: 0 };
-        this.contracts["SubNetProvider"] = { provider: new ethers.providers.StaticJsonRpcProvider(this.getEnvironment("subnet").chain_instance), nonce: 0 };
+        this.contracts["MainnetProvider"] = { provider: this.getProvider(this.getEnvironment("mainnet").chain_instance), nonce: 0 };
+        this.contracts["SubNetProvider"] = { provider: this.getProvider(this.getEnvironment("subnet").chain_instance,this.ratelimit_token), nonce: 0 };
         this.contracts["MainnetWallet"] =  new NonceManager(new ethers.Wallet(this.privateKey, this.contracts["MainnetProvider"].provider));
 
         const wal =new ethers.Wallet(this.privateKey, this.contracts["SubNetProvider"].provider);
@@ -356,11 +367,12 @@ abstract class AbstractBot {
     const sides =[];
     const type2s =[];
 
-
+    const blocknumber =
+        (await this.contracts["SubNetProvider"].provider.getBlockNumber()) || 0;
     //buy orders
     for (let i=0; i<6; i++) {
 
-      const clientOrderId = await this.getClientOrderId(i)
+      const clientOrderId = await this.getClientOrderId(blocknumber, i)
       const priceToSend = utils.parseUnits((100 - i).toFixed(this.quoteDisplayDecimals), this.contracts[this.quote].tokenDetails.evmdecimals);
       const quantityToSend = utils.parseUnits((10 + i).toFixed(this.baseDisplayDecimals), this.contracts[this.base].tokenDetails.evmdecimals);
       clientOrderIds.push(clientOrderId);
@@ -388,7 +400,7 @@ abstract class AbstractBot {
 
     try {
 
-    const tx = await this.tradePair.addLimitOrderList( this.tradePairByte32,clientOrderIds,prices,quantities,sides,type2s,true);
+    const tx = await this.tradePair.addLimitOrderList( this.tradePairByte32,clientOrderIds,prices,quantities,sides,type2s);
     const orderLog = await tx.wait();
 
      //Add the order to the map quickly to be replaced by the event fired by the blockchain that will follow.
@@ -398,7 +410,8 @@ abstract class AbstractBot {
             if (_log.event === 'OrderStatusChanged') {
               if (_log.args.traderaddress === this.account && _log.args.pair === this.tradePairByte32) {
                 await this.processOrders(_log.args.version, this.account, _log.args.pair, _log.args.orderId,  _log.args.clientOrderId, _log.args.price, _log.args.totalamount
-                  , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee , _log) ;
+                  , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee, _log.args.code
+                  , _log) ;
               }
             }
           }
@@ -504,7 +517,7 @@ abstract class AbstractBot {
           // this.logger.info (`${utils.parseUnits(price.toFixed(this.quoteDisplayDecimals), this.contracts[this.quote].tokenDetails.evmdecimals)}`);
           // this.logger.info (`${utils.parseUnits(quantity.toFixed(this.baseDisplayDecimals), this.contracts[this.base].tokenDetails.evmdecimals)}`);
 
-          const options = await this.getOptions()
+          const options = await this.getOptions(this.contracts["SubNetProvider"], gasest)
 
           const priceToSend = utils.parseUnits(price.toFixed(this.quoteDisplayDecimals), this.contracts[this.quote].tokenDetails.evmdecimals);
           const quantityToSend = utils.parseUnits(quantity.toFixed(this.baseDisplayDecimals), this.contracts[this.base].tokenDetails.evmdecimals);
@@ -534,7 +547,7 @@ abstract class AbstractBot {
                   if (_log.event === 'OrderStatusChanged') {
                     if (_log.args.traderaddress === this.account && _log.args.pair === this.tradePairByte32) {
                       await this.processOrders(_log.args.version, this.account, _log.args.pair, _log.args.orderId,  _log.args.clientOrderId, _log.args.price, _log.args.totalamount
-                        , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee , _log) ;
+                        , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee, _log.args.code , _log) ;
                     }
                   }
                 }
@@ -564,9 +577,11 @@ abstract class AbstractBot {
       }
   }
 
-  async getClientOrderId(counter =1): Promise<string> {
-    const blocknumber: number =
-        (await this.contracts["SubNetProvider"].provider.getBlockNumber()) || 0;
+  async getClientOrderId(blocknumber=0, counter =1): Promise<string> {
+    if (blocknumber ===0) {
+      blocknumber =
+          (await this.contracts["SubNetProvider"].provider.getBlockNumber()) || 0;
+    }
     const timestamp = new Date().toISOString();
     if (this.account) {
         const id = eutils.toUtf8Bytes(`${this.account}${blocknumber}${timestamp}${counter}`);
@@ -596,13 +611,12 @@ abstract class AbstractBot {
     return reason;
   }
 
-  async getOptions (provider:any = this.contracts["SubNetProvider"], highGasLimit = false) {
-    const gasPx= (await this.getGasPrice(provider)) ;
-    const gasP = Math.ceil(gasPx.mul(105).div(100).toNumber());
-    const optionsWithNonce = {gasLimit: 4000000, maxFeePerGas:gasP , maxPriorityFeePerGas:1 , nonce:0};
-    if (highGasLimit) {
-      optionsWithNonce.gasLimit= 6000000;
-    }
+  async getOptions (provider:any = this.contracts["SubNetProvider"], gasEstimate:BigNumberEthers = BigNumberEthers.from(300000)) {
+    const gasPx= await this.getGasPrice(provider);
+    const maxFeePerGas = Math.ceil(gasPx.mul(105).div(100).toNumber());
+    const gasLimit = Math.min(gasEstimate.mul(102).div(100).toNumber(), 30000000) // Block Gas Limit 30M
+    const optionsWithNonce = {gasLimit, maxFeePerGas , maxPriorityFeePerGas:1 , nonce:0};
+
     optionsWithNonce.nonce = provider.nonce++;
     return optionsWithNonce;
   }
@@ -631,11 +645,28 @@ abstract class AbstractBot {
     );
   }
 
+
+  async getAddOrderListGasEstimate(clientOrderIds: string[], prices:BigNumberEthers[] ,quantities:BigNumberEthers[],sides:number[], type2s:number[]) {
+      return this.tradePair.estimateGas.addLimitOrderList(
+        this.tradePairByte32,
+        clientOrderIds,prices,quantities, sides,
+        type2s
+    );
+  }
+
+
   async getCancelOrderGasEstimate(order:any ) {
       return this.tradePair.estimateGas.cancelOrder(
         order.id
     );
   }
+
+  async getCancelAllOrdersGasEstimate(orderIds:string[] ) {
+    return this.tradePair.estimateGas.cancelOrderList(
+      orderIds
+  );
+}
+
 
   async getGasPriceInGwei(provider:any= this.contracts["SubNetProvider"]) {
     const gasPx = await this.getGasPrice(provider);
@@ -786,7 +817,7 @@ abstract class AbstractBot {
   }
 
   async processOrders ( version:any , traderaddress:any, pair:any, orderId:any, clientOrderId: any, price:any, totalamount:any, quantity:any, side:any, type1:any
-    , type2:any, status:any, quantityfilled:any, totalfee:any , event:any) {
+    , type2:any, status:any, quantityfilled:any, totalfee:any, code:any , event:any) {
     try {
 
       if (pair === this.tradePairByte32) {
@@ -850,7 +881,7 @@ abstract class AbstractBot {
         this.setLastExecution(order, order.quantityfilled.toNumber(), order.side);
       }
       if (this.PNL) {this.PNL.addOrder(order)}
-      this.logger.debug (`${this.instanceName} New Order event: ${order.clientOrderId} ${order.pair} ${order.side === 0 ? 'BUY' :'SELL'} ${order.quantity.toString()} @ ${order.price.toString()} ${utils.statusMap[order.status]}`);
+      //this.logger.debug (`${this.instanceName} New Order event: ${order.clientOrderId} ${order.pair} ${order.side === 0 ? 'BUY' :'SELL'} ${order.quantity.toString()} @ ${order.price.toString()} ${utils.statusMap[order.status]}`);
     }
   }
 
@@ -883,23 +914,30 @@ abstract class AbstractBot {
 
     } else {
       this.setLastExecution(order, order.quantityfilled.toNumber(), order.side);
-      this.logger.debug (`${this.instanceName} removeOrderFromMap Filled/Canceled Order event, Order Not Found: ${order.clientOrderId} ${order.pair} ${order.side === 0 ? 'BUY' :'SELL'} ${order.quantity.toString()} @ ${order.price.toString()} ${utils.statusMap[order.status]}`);
+      //this.logger.debug (`${this.instanceName} removeOrderFromMap Filled/Canceled Order event, Order Not Found: ${order.clientOrderId} ${order.pair} ${order.side === 0 ? 'BUY' :'SELL'} ${order.quantity.toString()} @ ${order.price.toString()} ${utils.statusMap[order.status]}`);
     }
   }
 
-  async cancelAll () {
+  async cancelAll (nbrofOrderstoCancel=30) {
     const orderIds =[];
     try {
-
+      let i= 0;
       for (const order of this.orders.values()){
         orderIds.push(order.id);
+        i++;
+        if (i >= nbrofOrderstoCancel) {  // More than xx orders in a cancel will run out of gas
+          break;
+        }
       }
+
       //const orderIds = Array.from(this.orders.keys());
       if (orderIds.length > 0) {
         this.orderCount++;
         this.logger.warn (`${this.instanceName} Cancelling all outstanding orders, OrderNbr ${this.orderCount}`);
-        // More than 20 orders in a cancel will probably run out of gas
-        const tx = await this.tradePair.cancelAllOrders(orderIds.slice(0, Math.min(20,orderIds.length)), await this.getOptions(this.contracts["SubNetProvider"] ,true));
+        const gasest= await this.getCancelAllOrdersGasEstimate(orderIds)
+
+        //orderIds.slice(0, Math.min(nbrofOrderstoCancel, orderIds.length))
+        const tx = await this.tradePair.cancelOrderList(orderIds, await this.getOptions(this.contracts["SubNetProvider"], gasest));
         //const tx = await this.race({ promise:oderCancel , count: this.orderCount} );
         //const orderLog = await tx.wait();
         //const orderLog =  await this.race({ promise: tx.wait(), count: this.orderCount} );
@@ -910,7 +948,7 @@ abstract class AbstractBot {
               if (_log.event === 'OrderStatusChanged') {
                 if (_log.args.traderaddress === this.account && _log.args.pair === this.tradePairByte32) {
                   await this.processOrders(_log.args.version, this.account, _log.args.pair, _log.args.orderId,  _log.args.clientOrderId, _log.args.price, _log.args.totalamount
-                    , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee , _log) ;
+                    , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee, _log.args.code , _log) ;
                 }
               }
             }
@@ -941,7 +979,7 @@ abstract class AbstractBot {
           this.logger.debug (`${this.instanceName} Cancel order gasEstimate: ${gasest}, tcost  ${tcost} `);
           this.orderCount++;
           this.logger.debug (`${this.instanceName} canceling OrderNbr: ${this.orderCount} ${order.side === 0 ? 'BUY' :'SELL'} ::: ${order.quantity.toString()} ${this.base} @ ${order.price.toString()} ${this.quote}`);
-          const options = await this.getOptions(this.contracts["SubNetProvider"],true) ;
+          const options = await this.getOptions(this.contracts["SubNetProvider"], gasest) ;
           const tx = await this.tradePair.cancelOrder(order.id, options);
           //const tx = await this.race({ promise:oderCancel , count: this.orderCount} );
           //const orderLog = await this.race({ promise: tx.wait(), count: this.orderCount} );
@@ -953,7 +991,7 @@ abstract class AbstractBot {
                 if (_log.event === 'OrderStatusChanged') {
                   if (_log.args.traderaddress === this.account && _log.args.pair === this.tradePairByte32) {
                     await this.processOrders(_log.args.version, this.account, _log.args.pair, _log.args.orderId,  _log.args.clientOrderId, _log.args.price, _log.args.totalamount
-                      , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee , _log) ;
+                      , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee, _log.args.code , _log) ;
                   }
                 }
               }
@@ -1021,18 +1059,28 @@ abstract class AbstractBot {
   // Check the satus of the outstanding orders and remove if filled/canceled
   // If Live add the order to PNL
   async checkOrdersInChain (){
-      for (const order of this.orders.values()) {
-        const status = await this.checkOrderInChain(order);
-        if (status) {
-          this.logger.debug (`${this.instanceName} checkOrdersInChain: ${order.side === 0 ? 'BUY' :'SELL'} ${order.quantity.toString()} ${this.base} @ ${order.price.toString()} ${utils.statusMap[order.status]}`);
-        }
+    const promises: any = [];
+    const orders: any = [];
+    for (const order of this.orders.values()) {
+       orders.push(order);
+       promises.push(this.tradePair.getOrder(order.id));
     }
+    try {
+      const results = await Promise.all(promises);
+      for (let i = 0; i < results.length; i++) {
+        this.checkOrderInChain(orders[i], results[i])
+        this.logger.debug (`${this.instanceName} checkOrdersInChain: ${orders[i].side === 0 ? 'BUY' :'SELL'} ${orders[i].quantity.toString()} ${this.base} @ ${orders[i].price.toString()} ${utils.statusMap[orders[i].status]}`);
+      }
+
+    } catch (error) {
+      throw new Error("Could not fetch order status");
+    }
+
   }
 
-  async checkOrderInChain (orderinMemory:any) {
+  checkOrderInChain (orderinMemory:any, orderInChain:any) {
     try {
 
-      const orderInChain =  await this.tradePair.getOrder(orderinMemory.id);
       const order = this.makeOrder (orderInChain.traderaddress, this.tradePairByte32, orderInChain.id, orderInChain.clientOrderId, orderInChain.price,
          orderInChain.totalAmount, orderInChain.quantity, orderInChain.side, orderInChain.type1, orderInChain.type2
         ,orderInChain.status, orderInChain.quantityFilled, orderInChain.totalFee, '','', '0', '0' ,'0') ; //tx, blocknbr , gasUsed, gasPrice, cumulativeGasUsed) ;
