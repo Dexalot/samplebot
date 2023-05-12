@@ -36,7 +36,8 @@ nconf
   .env([
     "NODE_ENV_SETTINGS",
     "API_URL",
-    "DOMAIN_LINK"
+    "DOMAIN_LINK",
+    "ORIGIN_LINK"
   ]);
 
 export const DEXALOT_ENV = {

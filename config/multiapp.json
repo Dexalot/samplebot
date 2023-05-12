@@ -1,4 +1,5 @@
 {
-  "API_URL" : "https://multiapi.dexalot.com/api/",
-  "DOMAIN_LINK" : "https://multiapp.dexalot.com"
+  "API_URL" : "https://multiapi.dexalot.com/",
+  "DOMAIN_LINK" : "https://multiapp.dexalot.com",
+  "ORIGIN_LINK": "https://multiapp.dexalot.com"
 }

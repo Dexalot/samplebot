@@ -58,7 +58,7 @@ class LoadBot extends AbstractBot{
       clearTimeout(this.orderUptader);
     }
 
-    await this.cancelAll(100);
+    await this.cancelOrderList([], 100);
     // // this will refill the gas tank if running low
     // await this.cancelIndividualOrders(10);
 
@@ -257,7 +257,7 @@ async generateOrders (nbrofOrdersToAdd:number, addToMap = true, side = 99, quant
     return new BigNumber(this.minTradeAmnt).div(price);
   }
 
-  async getPrice (side:number): Promise<BigNumber> {
+  getPrice (side:number): BigNumber {
     return this.marketPrice;
   }
 
