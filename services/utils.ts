@@ -1,8 +1,8 @@
 import { ethers } from "ethers";
 import { getConfig } from "../config";
 import { getLogger } from "./logger";
-//@ts-ignore
-import moment from "moment-timezone";
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const moment = require("moment-timezone");
 
 
 

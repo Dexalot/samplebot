@@ -1,4 +1,5 @@
 {
-  "API_URL" : "http://localhost:3000/api/",
-  "DOMAIN_LINK" : "https://app.dexalot-test.com"
+  "API_URL" : "http://localhost:3000/",
+  "DOMAIN_LINK" : "https://app.dexalot-test.com",
+  "ORIGIN_LINK": "https://app.dexalot-test.com"
 }

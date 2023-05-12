@@ -13,7 +13,8 @@ import OrderBook from "./orderbook";
 import ERC20ABI from '../../artifacts/contracts/ERC20.json';
 import OrderBookRecordRaw from "../../models/orderBookRecordRaw";
 import OrderBookRaw from "../../models/orderBookRaw";
-const apiUrl =  getConfig('API_URL') + "trading/";
+const apiUrl =  getConfig('API_URL') + "api/trading/";
+const signedApiUrl=  getConfig('API_URL') + "privapi/signed/";
 const ADDRESS0 ='0x0000000000000000000000000000000000000000000000000000000000000000';
 
 abstract class AbstractBot {
@@ -44,6 +45,7 @@ abstract class AbstractBot {
   protected cleanupCalled = false;
   protected interval = 20000;
   protected orderbook:any  //local orderbook to keep track of my own orders ONLY
+  protected chainOrderbook:any  //orderbook from the chain
   protected orderUptader: NodeJS.Timeout | undefined;
   protected rebalancePct= 0.9;
   protected portfolioRebalanceAtStart= "N";
@@ -57,6 +59,8 @@ abstract class AbstractBot {
   private privateKey:any;
   private ratelimit_token?:string;
   protected tokenDetails:any;
+  protected signature:any;
+  protected axiosConfig:any;
 
 
   constructor(botId:number, pairStr: string, privateKey: string, ratelimit_token?: string) {
@@ -72,7 +76,7 @@ abstract class AbstractBot {
       this.orderbook = new OrderBook();
       this.ratelimit_token = ratelimit_token;
 
-      (axios.defaults.headers! as unknown as Record<string, any>).common['Origin'] = getConfig('DOMAIN_LINK');
+      (axios.defaults.headers! as unknown as Record<string, any>).common['Origin'] = getConfig('ORIGIN_LINK');
       (axios.defaults.headers! as unknown as Record<string, any>).common['User-Agent'] ="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36"
 
   }
@@ -158,7 +162,12 @@ abstract class AbstractBot {
         const wal =new ethers.Wallet(this.privateKey, this.contracts["SubNetProvider"].provider);
         this.contracts["SubnetWallet"] =  new NonceManager(wal);
         this.account = wal.address;
-
+        this.signature = await wal.signMessage("dexalot");
+        this.axiosConfig ={
+          headers:{
+            'x-signature': `${this.account}:${this.signature}`
+          }
+        };
         this.logger.info (`${this.instanceName} Base Class Initialize`);
         this.setNonce("SubNetProvider");
         this.setNonce("MainnetProvider");
@@ -286,7 +295,7 @@ abstract class AbstractBot {
       clearTimeout(this.orderUptader);
     }
     if (this.getSettingValue('CANCEL_ALL_AT_STOP')==='Y') {
-      this.cancelAll().then(() => {
+      this.cancelOrderList().then(() => {
         this.logger.warn (`${this.instanceName} Waiting 5 seconds before removing order listeners"...`);
           setTimeout(async () => {
             if (savetoDb) {
@@ -333,7 +342,7 @@ abstract class AbstractBot {
   }
 
   abstract saveBalancestoDb (balancesRefreshed:boolean): Promise<void>;
-  abstract getPrice (side:number): Promise<BigNumber>;
+  abstract getPrice (side:number): BigNumber;
   abstract getAlotPrice (): Promise<number>;
   // infinite loop that updates the order books periodically
   abstract startOrderUpdater (): Promise<void> ;
@@ -358,7 +367,7 @@ abstract class AbstractBot {
   }
 
 
-  // Reference implemenation, it just send 6 buy limit GTC orders with prices from 94 to 100
+  // Reference implementation, it just send 6 buy limit GTC orders with prices from 94 to 100
   async addLimitOrderList () {
 
     const clientOrderIds=[];
@@ -398,9 +407,14 @@ abstract class AbstractBot {
 
     }
 
+
     try {
 
-    const tx = await this.tradePair.addLimitOrderList( this.tradePairByte32,clientOrderIds,prices,quantities,sides,type2s);
+    const gasest= await this.getAddOrderListGasEstimate(clientOrderIds,prices,quantities,sides,type2s);
+
+    this.logger.warn (`${this.instanceName} Gas Est ${gasest.toString()}`);
+    const tx = await this.tradePair.addLimitOrderList( this.tradePairByte32,clientOrderIds,prices,quantities,sides,type2s,
+        await this.getOptions(this.contracts["SubNetProvider"], gasest));
     const orderLog = await tx.wait();
 
      //Add the order to the map quickly to be replaced by the event fired by the blockchain that will follow.
@@ -410,8 +424,8 @@ abstract class AbstractBot {
             if (_log.event === 'OrderStatusChanged') {
               if (_log.args.traderaddress === this.account && _log.args.pair === this.tradePairByte32) {
                 await this.processOrders(_log.args.version, this.account, _log.args.pair, _log.args.orderId,  _log.args.clientOrderId, _log.args.price, _log.args.totalamount
-                  , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee, _log.args.code
-                  , _log) ;
+                  , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee,
+                 _log.args.code, _log) ;
               }
             }
           }
@@ -443,6 +457,13 @@ abstract class AbstractBot {
 
   }
 
+  fundsAvailable(side:number, quantity:BigNumber, px:BigNumber) {
+    if (side === 0) {
+        return px.times(quantity).lte(this.contracts[this.quote].portfolioAvail)
+      } else {
+        return quantity.lte(this.contracts[this.base].portfolioAvail)
+    }
+  }
 
   async addOrder (side:number, qty:BigNumber| undefined, px:BigNumber| undefined, ordtype=1, ordType2=0) { // LIMIT ORDER  & GTC)
       if (!this.status) {
@@ -454,7 +475,7 @@ abstract class AbstractBot {
       let price = px;
       let quantity = qty;
       try {
-        const marketPrice = await this.getPrice(side); // Retuns adjustedBid or Ask
+        const marketPrice = this.getPrice(side); // Returns adjustedBid or Ask
         if (!price) {
           if (ordtype === 1) {
             price = marketPrice;
@@ -473,8 +494,9 @@ abstract class AbstractBot {
 
         if (( ((ordtype === 1) && price.gt(0)) || ordtype===0 )  && quantity.gt(0)) {
 
+          const funds = this.fundsAvailable(side, quantity, marketPrice);
           if (side === 0) {
-            if (marketPrice.times(quantity).gt(this.contracts[this.quote].portfolioAvail)) {
+            if (!funds) {
               this.logger.error (`${this.instanceName} Not enough funds to add BUY order`);
               utils.printBalances(this.account, this.quote, this.contracts[this.quote]);
               return;
@@ -491,7 +513,7 @@ abstract class AbstractBot {
             }
 
           } else {
-            if (quantity.gt(this.contracts[this.base].portfolioAvail)) {
+            if (!funds) {
               this.logger.error (`${this.instanceName} Not enough funds to add SELL order`);
               utils.printBalances(this.account, this.base, this.contracts[this.base]);
               return;
@@ -511,8 +533,8 @@ abstract class AbstractBot {
           this.orderCount++;
 
           const gasest= await this.getAddOrderGasEstimate(clientOrderId, price, quantity, side, ordtype, ordType2);
-          const tcost = await this.getTCost(gasest);
-          this.logger.debug (`${this.instanceName} New order gasEstimate: ${gasest} , tcost  ${tcost.toString()} `);
+          // const tcost = await this.getTCost(gasest);
+          // this.logger.debug (`${this.instanceName} New order gasEstimate: ${gasest} , tcost  ${tcost.toString()} `);
           this.logger.debug (`${this.instanceName} SENDING ORDER OrderNbr: ${this.orderCount} ${side === 0 ? 'BUY' :'SELL'}::: ${quantity.toFixed(this.baseDisplayDecimals)} ${this.base} @ ${ordtype===0 ? 'MARKET' : price.toFixed(this.quoteDisplayDecimals)} ${this.quote}`);
           // this.logger.info (`${utils.parseUnits(price.toFixed(this.quoteDisplayDecimals), this.contracts[this.quote].tokenDetails.evmdecimals)}`);
           // this.logger.info (`${utils.parseUnits(quantity.toFixed(this.baseDisplayDecimals), this.contracts[this.base].tokenDetails.evmdecimals)}`);
@@ -547,7 +569,8 @@ abstract class AbstractBot {
                   if (_log.event === 'OrderStatusChanged') {
                     if (_log.args.traderaddress === this.account && _log.args.pair === this.tradePairByte32) {
                       await this.processOrders(_log.args.version, this.account, _log.args.pair, _log.args.orderId,  _log.args.clientOrderId, _log.args.price, _log.args.totalamount
-                        , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee, _log.args.code , _log) ;
+                        , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee,
+                        _log.args.code, _log) ;
                     }
                   }
                 }
@@ -611,7 +634,7 @@ abstract class AbstractBot {
     return reason;
   }
 
-  async getOptions (provider:any = this.contracts["SubNetProvider"], gasEstimate:BigNumberEthers = BigNumberEthers.from(300000)) {
+  async getOptions (provider:any = this.contracts["SubNetProvider"], gasEstimate:BigNumberEthers = BigNumberEthers.from(700000)) {
     const gasPx= await this.getGasPrice(provider);
     const maxFeePerGas = Math.ceil(gasPx.mul(105).div(100).toNumber());
     const gasLimit = Math.min(gasEstimate.mul(102).div(100).toNumber(), 30000000) // Block Gas Limit 30M
@@ -654,6 +677,12 @@ abstract class AbstractBot {
     );
   }
 
+  async getCancelReplaceOrderGasEstimate(orderId:string, clientOrderId:string, price:BigNumberEthers, quantity:BigNumberEthers ) {
+    return this.tradePair.estimateGas.cancelReplaceOrder(
+      orderId, clientOrderId, price, quantity
+  );
+}
+
 
   async getCancelOrderGasEstimate(order:any ) {
       return this.tradePair.estimateGas.cancelOrder(
@@ -662,11 +691,11 @@ abstract class AbstractBot {
   }
 
   async getCancelAllOrdersGasEstimate(orderIds:string[] ) {
-    return this.tradePair.estimateGas.cancelOrderList(
-      orderIds
-  );
-}
+      return this.tradePair.estimateGas.cancelOrderList(
+        orderIds
+    );
 
+  }
 
   async getGasPriceInGwei(provider:any= this.contracts["SubNetProvider"]) {
     const gasPx = await this.getGasPrice(provider);
@@ -727,13 +756,13 @@ abstract class AbstractBot {
 
       utils.printBalances(this.account, "AVAX", this.contracts["AVAX"]);
 
-      if (this.contracts["AVAX"].mainnetBal <= this.getSettingValue('LOW_AVAX_CHAIN_BALANCE') ) {
-        let text= "*****************" +  this.instanceName + " LOW AVAX Chain Balance for account :" + this.account ;
-        text = text + utils.lineBreak + '*****************************************************************************************';
-        text = text + utils.lineBreak + 'LOW AVAX Chain Balance, you will not be able pay for gas fees soon unless you replenish your account. Current Balance: ' + this.contracts["AVAX"].mainnetBal;
-        text = text + utils.lineBreak + '*****************************************************************************************'+ utils.lineBreak;
-        this.logger.warn (`${text}`);
-      }
+      // if (this.contracts["AVAX"].mainnetBal <= this.getSettingValue('LOW_AVAX_CHAIN_BALANCE') ) {
+      //   let text= "*****************" +  this.instanceName + " LOW AVAX Chain Balance for account :" + this.account ;
+      //   text = text + utils.lineBreak + '*****************************************************************************************';
+      //   text = text + utils.lineBreak + 'LOW AVAX Chain Balance, you will not be able pay for gas fees soon unless you replenish your account. Current Balance: ' + this.contracts["AVAX"].mainnetBal;
+      //   text = text + utils.lineBreak + '*****************************************************************************************'+ utils.lineBreak;
+      //   this.logger.warn (`${text}`);
+      // }
 
       tokenDetails = this.contracts["ALOT"].tokenDetails
       bal = await this.getWalletBalance(tokenDetails, this.contracts["MainnetProvider"].provider, "mainnet");
@@ -817,7 +846,7 @@ abstract class AbstractBot {
   }
 
   async processOrders ( version:any , traderaddress:any, pair:any, orderId:any, clientOrderId: any, price:any, totalamount:any, quantity:any, side:any, type1:any
-    , type2:any, status:any, quantityfilled:any, totalfee:any, code:any , event:any) {
+    , type2:any, status:any, quantityfilled:any, totalfee:any , code:any, event:any) {
     try {
 
       if (pair === this.tradePairByte32) {
@@ -918,15 +947,17 @@ abstract class AbstractBot {
     }
   }
 
-  async cancelAll (nbrofOrderstoCancel=30) {
-    const orderIds =[];
+  async cancelOrderList (orderIds:string[] = [] , nbrofOrderstoCancel = 30 ) {
+
     try {
-      let i= 0;
-      for (const order of this.orders.values()){
-        orderIds.push(order.id);
-        i++;
-        if (i >= nbrofOrderstoCancel) {  // More than xx orders in a cancel will run out of gas
-          break;
+      if (orderIds.length === 0) {
+        let i= 0;
+        for (const order of this.orders.values()){
+          orderIds.push(order.id);
+          i++;
+          if (i >= nbrofOrderstoCancel) {  // More than xx orders in a cancel will run out of gas
+            break;
+          }
         }
       }
 
@@ -935,9 +966,8 @@ abstract class AbstractBot {
         this.orderCount++;
         this.logger.warn (`${this.instanceName} Cancelling all outstanding orders, OrderNbr ${this.orderCount}`);
         const gasest= await this.getCancelAllOrdersGasEstimate(orderIds)
+        const tx= await this.tradePair.cancelOrderList(orderIds, await this.getOptions(this.contracts["SubNetProvider"], gasest));
 
-        //orderIds.slice(0, Math.min(nbrofOrderstoCancel, orderIds.length))
-        const tx = await this.tradePair.cancelOrderList(orderIds, await this.getOptions(this.contracts["SubNetProvider"], gasest));
         //const tx = await this.race({ promise:oderCancel , count: this.orderCount} );
         //const orderLog = await tx.wait();
         //const orderLog =  await this.race({ promise: tx.wait(), count: this.orderCount} );
@@ -948,7 +978,8 @@ abstract class AbstractBot {
               if (_log.event === 'OrderStatusChanged') {
                 if (_log.args.traderaddress === this.account && _log.args.pair === this.tradePairByte32) {
                   await this.processOrders(_log.args.version, this.account, _log.args.pair, _log.args.orderId,  _log.args.clientOrderId, _log.args.price, _log.args.totalamount
-                    , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee, _log.args.code , _log) ;
+                    , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee,
+                    _log.args.code, _log) ;
                 }
               }
             }
@@ -974,9 +1005,9 @@ abstract class AbstractBot {
       try {
 
         const gasest= await this.getCancelOrderGasEstimate(order);
-        const tcost = await this.getTCost(gasest);
+        // const tcost = await this.getTCost(gasest);
 
-          this.logger.debug (`${this.instanceName} Cancel order gasEstimate: ${gasest}, tcost  ${tcost} `);
+          this.logger.debug (`${this.instanceName} Cancel order gasEstimate: ${gasest} `); // ${tcost}
           this.orderCount++;
           this.logger.debug (`${this.instanceName} canceling OrderNbr: ${this.orderCount} ${order.side === 0 ? 'BUY' :'SELL'} ::: ${order.quantity.toString()} ${this.base} @ ${order.price.toString()} ${this.quote}`);
           const options = await this.getOptions(this.contracts["SubNetProvider"], gasest) ;
@@ -991,7 +1022,8 @@ abstract class AbstractBot {
                 if (_log.event === 'OrderStatusChanged') {
                   if (_log.args.traderaddress === this.account && _log.args.pair === this.tradePairByte32) {
                     await this.processOrders(_log.args.version, this.account, _log.args.pair, _log.args.orderId,  _log.args.clientOrderId, _log.args.price, _log.args.totalamount
-                      , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee, _log.args.code , _log) ;
+                      , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee,
+                      _log.args.code , _log) ;
                   }
                 }
               }
@@ -1021,16 +1053,98 @@ abstract class AbstractBot {
   }
 
 
+  async cancelReplaceOrder  (order:any, quantity:BigNumber, price:BigNumber) {
+
+    if (!this.status) {
+      return;
+    }
+
+    try {
+
+        if (this.washTradeCheck) {
+          if (order.side === 0) {
+            const myBestask= this.orderbook.bestask();
+            if (myBestask ) {
+              const orderBAsk = this.orders.get(myBestask.orders[0].clientOrderId);
+              if (orderBAsk && price.gte(orderBAsk.price)) {
+                this.logger.warn (`${this.instanceName} 'Wash trade in C/R not allowed. New BUY order price ${price.toFixed(this.quoteDisplayDecimals)} >= Best Ask ${orderBAsk.price.toString()}`);
+                return;
+              }
+            }
+          } else {
+            const myBestbid= this.orderbook.bestbid();
+            if (myBestbid ){
+              const orderBBid = this.orders.get(myBestbid.orders[0].clientOrderId);
+              if (orderBBid && price.lte(orderBBid.price)) {
+                this.logger.warn (`${this.instanceName} 'Wash trade in C/R not allowed. New SELL order price ${price.toFixed(this.quoteDisplayDecimals)} <= Best Bid ${orderBBid.price.toString()}`);
+                return;
+              }
+            }
+          }
+        }
+
+        const priceToSend = utils.parseUnits(price.toFixed(this.quoteDisplayDecimals), this.contracts[this.quote].tokenDetails.evmdecimals);
+        const quantityToSend = utils.parseUnits(quantity.toFixed(this.baseDisplayDecimals), this.contracts[this.base].tokenDetails.evmdecimals);
+        const clientOrderId = await this.getClientOrderId();
+        // Not using the gasEstimate because it fails with P-AFNE1 when funds are tight but the actual C/R doesn't
+
+        // const gasest= await this.getCancelReplaceOrderGasEstimate(order.id, clientOrderId ,priceToSend, quantityToSend);
+        // this.logger.debug (`${this.instanceName} CancelReplace order gasEstimate: ${gasest} `); // ${tcost}
+        this.orderCount++;
+        this.logger.debug (`${this.instanceName} Cancel/Replace OrderNbr: ${this.orderCount} ${order.side === 0 ? 'BUY' :'SELL'} ::: ${order.quantity.toString()} ${this.base} @ ${order.price.toString()} ${this.quote}`);
+        const options = await this.getOptions(this.contracts["SubNetProvider"], BigNumberEthers.from(1000000)) ;
+        const tx = await this.tradePair.cancelReplaceOrder(order.id, clientOrderId, priceToSend, quantityToSend, options);
+        const orderLog = await tx.wait();
+
+        if (orderLog){
+          for (const _log of orderLog.events) {
+            if (_log.event) {
+              if (_log.event === 'OrderStatusChanged') {
+                if (_log.args.traderaddress === this.account && _log.args.pair === this.tradePairByte32) {
+                  await this.processOrders(_log.args.version, this.account, _log.args.pair, _log.args.orderId,  _log.args.clientOrderId, _log.args.price, _log.args.totalamount
+                    , _log.args.quantity, _log.args.side, _log.args.type1, _log.args.type2, _log.args.status, _log.args.quantityfilled, _log.args.totalfee,
+                    _log.args.code , _log) ;
+                }
+              }
+            }
+          }
+        }
+      return true;
+    } catch (error:any) {
+
+      const nonceErr = 'Nonce too high';
+      const idx = error.message.indexOf(nonceErr);
+      if (error.code === "NONCE_EXPIRED" || idx > -1 ) {
+        this.logger.warn (`${this.instanceName} Order Cancel/Replace error ${order.side === 0 ? 'BUY' :'SELL'} ::: ${order.quantity.toFixed(this.baseDisplayDecimals)} @ ${order.price.toFixed(this.quoteDisplayDecimals)} Invalid Nonce`);
+        await this.correctNonce(this.contracts["SubNetProvider"]);
+      } else {
+        const reason = await this.getRevertReason(error);
+        if (reason) {
+          if (reason==="T-OAEX-01"){
+            this.removeOrderFromMap(order);
+          }
+          this.logger.warn (`${this.instanceName} Order Cancel/Replace error ${order.side === 0 ? 'BUY' :'SELL'} ::: ${order.quantity.toFixed(this.baseDisplayDecimals)} @ ${order.price.toFixed(this.quoteDisplayDecimals)} Revert Reason ${reason}`);
+         } else {
+          this.logger.error (`${this.instanceName} Order Cancel/Replace error ${order.side === 0 ? 'BUY' :'SELL'} ::: ${order.quantity.toFixed(this.baseDisplayDecimals)} @ ${order.price.toFixed(this.quoteDisplayDecimals)}`,error);
+         }
+      }
+      return false;
+    }
+}
   //FIXME Gas usage is not returned from db. Enhance it to have it available for this as well.
   //Otherwise PNL will not reflect the Gas used for the recovered orders. (Possibly small impact)
   async getOpenOrders () {
-    const orders: any= (await axios.get(getConfig('API_URL') + 'trading/openorders/params?traderaddress=' + this.account + '&pair=' + this.tradePairIdentifier)).data;
+    try {
+    const orders: any= (await axios.get(signedApiUrl + 'orders?pair=' + this.tradePairIdentifier + '&category=0', this.axiosConfig)).data;
     return orders.rows ;
+    } catch (error:any) {
+      this.logger.error (`${this.instanceName} ${error}`);
+    }
   }
 
   async processOpenOrders () {
 
-    this.logger.info(`${this.instanceName} Recovering open orders:`,  );
+    this.logger.info(`${this.instanceName} Recovering open orders:` );
     const orders = await this.getOpenOrders();
     for (const order of orders) {
       const orderfromDb = new Order ({id: order.id
@@ -1054,6 +1168,7 @@ abstract class AbstractBot {
       this.addOrderToMap(orderfromDb);
     }
     await this.checkOrdersInChain();
+    this.logger.info(`${this.instanceName} open orders recovered:` );
   }
 
   // Check the satus of the outstanding orders and remove if filled/canceled
@@ -1136,7 +1251,7 @@ abstract class AbstractBot {
   }
 
 
-  async getBookwithLoop  (side: number): Promise<any> {
+  async getBookwithLoop  (side: number, nPrice =2): Promise<any> {
     if (this.tradePair === undefined) {
       this.logger.error("GetBookErr: Contract connection not ready yet.!");
       return { buyBook: [], sellBook: [] };
@@ -1146,7 +1261,6 @@ abstract class AbstractBot {
     let lastOrderId = utils.fromUtf8("");
     let book;
     let i;
-    const nPrice = 50;
     const nOrder = 50;
     this.logger.debug(`getBookwithLoop called ${this.tradePairIdentifier} ${side}: `);
 
@@ -1220,6 +1334,7 @@ abstract class AbstractBot {
         buyBook: rawBuyBook,
         sellBook: rawSellBook
       };
+      this.chainOrderbook =orderbookRaw;
       return orderbookRaw;
     } catch (error) {
       this.logger.error("GetBook Err", error);

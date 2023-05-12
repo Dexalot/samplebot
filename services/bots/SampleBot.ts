@@ -71,9 +71,9 @@ class SampleBot extends AbstractBot{
       //const bookinChain = await this.getBookfromChain();
 
        //Get rid of any order that is outstanding on this account if needed.
-       //if you have more than 10-15 outstaning orders on this pair, this function may run out of gas
+       //if you have more than 10-15 outstanding orders on this pair, this function may run out of gas
        // use this.cancelAllIndividually() instead.
-      await this.cancelAll();
+      await this.cancelOrderList([], 100);
 
       // Sleep 30 seconds initially
       await utils.sleep(3000);
@@ -137,7 +137,7 @@ class SampleBot extends AbstractBot{
     return new BigNumber(this.minTradeAmnt).div(price);
   }
 
-  async getPrice (side:number): Promise<BigNumber> {
+  getPrice (side:number): BigNumber {
     return this.marketPrice;
   }
 
