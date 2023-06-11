@@ -4,37 +4,33 @@ import { getLogger } from "./logger";
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const moment = require("moment-timezone");
 
-
-
 class utils {
   static logger = getLogger("Utils");
 
-  static assetMap: any = {"0": "NATIVE",
-  "1": "ERC20 ",
-  "2": "NONE  "}
+  static assetMap: any = { "0": "NATIVE", "1": "ERC20 ", "2": "NONE  " };
 
-  static statusMap: any = {"0": "NEW",          // NEW = Order.Status.NEW = 0
-      "2": "PARTIAL",      // PARTIAL = Order.Status.PARTIAL = 2
-      "3": "FILLED",       // FILLED = Order.Status.FILLED = 3
-      "4": "CANCELED",     // CANCELED = Order.Status.CANCELED = 4
-      "9": "PENDING"};     // Not a valid contract status. For app only, to track orders that are sent out but not comitted to the blockchain.
-      // Tx technically won't be committed to the blockchain and stay in the mempool when tx_gaspricesent_inoptions < current_network_gasprice
+  static statusMap: any = {
+    "0": "NEW", // NEW = Order.Status.NEW = 0
+    "2": "PARTIAL", // PARTIAL = Order.Status.PARTIAL = 2
+    "3": "FILLED", // FILLED = Order.Status.FILLED = 3
+    "4": "CANCELED", // CANCELED = Order.Status.CANCELED = 4
+    "9": "PENDING"
+  }; // Not a valid contract status. For app only, to track orders that are sent out but not comitted to the blockchain.
+  // Tx technically won't be committed to the blockchain and stay in the mempool when tx_gaspricesent_inoptions < current_network_gasprice
 
-  static sideMap: any = {"BUY": 0 ,            // BUY = Order.Side.BUY = 0
-      "SELL": 1 }            // SELL = Order.Side.SELL = 0
+  static sideMap: any = {
+    BUY: 0, // BUY = Order.Side.BUY = 0
+    SELL: 1
+  }; // SELL = Order.Side.SELL = 0
 
+  static type1Map = {
+    "0": "MARKET", // MARKET = Order.Type1.MARKET = 0
+    "1": "LIMIT", // LIMIT = Order.Type1.LIMIT = 0
+    "2": "STOP",
+    "3": "STOPLIMIT"
+  }; // STOP = Order.Type1.STOP = 0
 
-  static type1Map = {"0": "MARKET",        // MARKET = Order.Type1.MARKET = 0
-  "1": "LIMIT",         // LIMIT = Order.Type1.LIMIT = 0
-  "2": "STOP",
-  "3": "STOPLIMIT",
-  }          // STOP = Order.Type1.STOP = 0
-
-  static type2Map = {"0": "GTC",
-  "1": "FOK",
-  "2": "IOC",
-  "3": "PO",
-  }
+  static type2Map = { "0": "GTC", "1": "FOK", "2": "IOC", "3": "PO" };
 
   static lineBreak = "\r\n";
 
@@ -145,16 +141,22 @@ class utils {
     return roundDown.toDate();
   };
 
-  static printBalances=(account:string, name:string, res:any):void => {
-    console.log(name, "::",
-    account.substring(account.length-5),
-    res.mainnetBal, "/",
-    res.subnetBal, "/",
-    res.portfolioTot, "/",
-    res.portfolioAvail, "/",
-    "[Mainnet/ Subnet/ P Tot / P Avail]");
+  static printBalances = (account: string, name: string, res: any): void => {
+    console.log(
+      name,
+      "::",
+      account.substring(account.length - 5),
+      res.mainnetBal,
+      "/",
+      res.subnetBal,
+      "/",
+      res.portfolioTot,
+      "/",
+      res.portfolioAvail,
+      "/",
+      "[Mainnet/ Subnet/ P Tot / P Avail]"
+    );
   };
-
 
   static sleep = (ms: number) => {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -165,29 +167,29 @@ class utils {
     return buff.toString("utf8");
   }
 
-  static getBlockChain() :string {
-    let blockchain = 'Avalanche';
-    if ( getConfig("NODE_ENV_SETTINGS").includes ('-hh' ) )  {
-      blockchain='Hardhat';
+  static getBlockChain(): string {
+    let blockchain = "Avalanche";
+    if (getConfig("NODE_ENV_SETTINGS").includes("-hh")) {
+      blockchain = "Hardhat";
     }
     return blockchain;
   }
 
-  static randomFromInterval(min:number, max:number, decimalPlaces=2) {  // either positive or negative random number between 2 numbers
-    const rand = Math.random()*(max-min) + min;
+  static randomFromInterval(min: number, max: number, decimalPlaces = 2) {
+    // either positive or negative random number between 2 numbers
+    const rand = Math.random() * (max - min) + min;
     const power = Math.pow(10, decimalPlaces);
-    let num =  Math.floor(rand*power) / power;
-    num *= Math.round(Math.random()) === 0 ? 1 : -1
+    let num = Math.floor(rand * power) / power;
+    num *= Math.round(Math.random()) === 0 ? 1 : -1;
     return num;
   }
 
-  static randomFromIntervalPositive(min:number, max:number, decimalPlaces=2) {  // either positive or negative random number between 2 numbers
-    const rand = Math.random()*(max-min) + min;
+  static randomFromIntervalPositive(min: number, max: number, decimalPlaces = 2) {
+    // either positive or negative random number between 2 numbers
+    const rand = Math.random() * (max - min) + min;
     const power = Math.pow(10, decimalPlaces);
-    const num =  Math.floor(rand*power) / power;
+    const num = Math.floor(rand * power) / power;
     return num;
   }
-
-
 }
 export default utils;

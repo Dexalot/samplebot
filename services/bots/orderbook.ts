@@ -1,53 +1,53 @@
-import RBTree  from 'bintrees';
-import BigNumber from 'bignumber.js';
+import RBTree from "bintrees";
+import BigNumber from "bignumber.js";
 import { getLogger } from "../logger";
 
 class Orderbook {
   protected logger;
-  protected _ordersByID:any;
-  protected _bids:any;
-  protected _asks:any;
+  protected _ordersByID: any;
+  protected _bids: any;
+  protected _asks: any;
 
   constructor() {
     this.logger = getLogger("OrderBook");
     this._ordersByID = {};
-    this._bids = new RBTree.RBTree((a: { price: { comparedTo: (arg0: any) => any; }; }, b: { price: any; }) => a.price.comparedTo(b.price));
-    this._asks = new RBTree.RBTree((a: { price: { comparedTo: (arg0: any) => any; }; }, b: { price: any; }) => a.price.comparedTo(b.price));
+    this._bids = new RBTree.RBTree((a: { price: { comparedTo: (arg0: any) => any } }, b: { price: any }) => a.price.comparedTo(b.price));
+    this._asks = new RBTree.RBTree((a: { price: { comparedTo: (arg0: any) => any } }, b: { price: any }) => a.price.comparedTo(b.price));
   }
 
-  _getTree(side:number) {
+  _getTree(side: number) {
     return side === 0 ? this._bids : this._asks;
   }
 
-  state(book:any = null) {
+  state(book: any = null) {
     if (book) {
-      book.bids.forEach((order:any) =>
+      book.bids.forEach((order: any) =>
         this.add({
           clientOrderId: order[2],
           side: 0,
           price: new BigNumber(order[0]),
-          quantity: new BigNumber(order[1]),
+          quantity: new BigNumber(order[1])
         })
       );
 
-      book.asks.forEach((order:any) =>
+      book.asks.forEach((order: any) =>
         this.add({
           clientOrderId: order[2],
           side: 1,
           price: new BigNumber(order[0]),
-          quantity: new BigNumber(order[1]),
+          quantity: new BigNumber(order[1])
         })
       );
     } else {
       book = { asks: [], bids: [] };
-      this._bids.reach((bid:any) => book.bids.push(...bid.orders));
-      this._asks.each((ask:any)  => book.asks.push(...ask.orders));
+      this._bids.reach((bid: any) => book.bids.push(...bid.orders));
+      this._asks.each((ask: any) => book.asks.push(...ask.orders));
 
       return book;
     }
   }
 
-  get(clientOrderId:any) {
+  get(clientOrderId: any) {
     return this._ordersByID[clientOrderId];
   }
 
@@ -74,10 +74,9 @@ class Orderbook {
     return this.state().asks.length;
   }
 
-  add(order:any) {
-
+  add(order: any) {
     order = {
-      clientOrderId:  order.clientOrderId,
+      clientOrderId: order.clientOrderId,
       side: order.side,
       price: order.price,
       quantity: order.quantity.minus(order.quantityfilled)
@@ -89,7 +88,7 @@ class Orderbook {
     if (!node) {
       node = {
         price: order.price,
-        orders: [],
+        orders: []
       };
       tree.insert(node);
     }
@@ -98,13 +97,13 @@ class Orderbook {
     this._ordersByID[order.clientOrderId] = order;
   }
 
-  remove(rorder:any) {
+  remove(rorder: any) {
     let order = this.get(rorder.clientOrderId);
 
     if (!order) {
-      this.logger.debug (`${order.clientOrderId} Order not found in Orderbook`);
+      this.logger.debug(`${order.clientOrderId} Order not found in Orderbook`);
       order = {
-        clientOrderId:  rorder.clientOrderId,
+        clientOrderId: rorder.clientOrderId,
         side: rorder.side,
         price: rorder.price,
         quantity: rorder.quantity.minus(rorder.quantityfilled)
@@ -120,12 +119,12 @@ class Orderbook {
         tree.remove(node);
       }
     } else {
-      this.logger.debug (`${node} 'rderbook remove , node not found`);
+      this.logger.debug(`${node} 'rderbook remove , node not found`);
     }
     delete this._ordersByID[order.clientOrderId];
   }
 
-  change(change:any) {
+  change(change: any) {
     // price of null indicates market order
     if (change.price === null || change.price === undefined) {
       return;
