@@ -237,7 +237,7 @@ abstract class AbstractBot {
         this.contracts["TradePairs"].deployedContract = this.tradePair;
 
         this.minTradeAmnt = this.pairObject.mintrade_amnt;
-        this.maxTradeAmnt = this.pairObject.mintrade_amnt;
+        this.maxTradeAmnt = this.pairObject.maxtrade_amnt;
         this.quoteDisplayDecimals = this.pairObject.quotedisplaydecimals;
         this.baseDisplayDecimals = this.pairObject.basedisplaydecimals;
 
