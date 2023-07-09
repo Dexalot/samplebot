@@ -11,7 +11,7 @@ class SampleBot extends AbstractBot {
   constructor(botId: number, pairStr: string, privateKey: string) {
     super(botId, pairStr, privateKey);
     // Will try to rebalance the amounts in the Portfolio Contract
-    this.portfolioRebalanceAtStart = "Y";
+    this.portfolioRebalanceAtStart = "N";
   }
 
   async saveBalancestoDb(balancesRefreshed: boolean): Promise<void> {

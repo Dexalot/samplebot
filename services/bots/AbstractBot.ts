@@ -48,7 +48,7 @@ abstract class AbstractBot {
   protected chainOrderbook: any; //orderbook from the chain
   protected orderUptader: NodeJS.Timeout | undefined;
   protected rebalancePct = 0.9;
-  protected portfolioRebalanceAtStart = "N";
+  protected portfolioRebalanceAtStart = false;
   protected lastExecution: any;
   protected PNL: any; // Needs to be implemented
   protected initialDepositBase = 10000;
