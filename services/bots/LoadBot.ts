@@ -15,7 +15,7 @@ class LoadBot extends AbstractBot {
   constructor(botId: number, pairStr: string, privateKey: string, ratelimit_token?: string) {
     super(botId, pairStr, privateKey, ratelimit_token);
     // Do not rebalance the portfolio. The tokens are expected to be in the subnet already
-    this.portfolioRebalanceAtStart = "N";
+    this.portfolioRebalanceAtStart = false;
     this.washTradeCheck = false;
   }
 

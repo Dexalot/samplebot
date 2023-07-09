@@ -1746,7 +1746,7 @@ abstract class AbstractBot {
           }
         }
       }
-      if (this.portfolioRebalanceAtStart === "Y") {
+      if (this.portfolioRebalanceAtStart === true) {
         //BASE
         if (
           this.contracts[this.base].portfolioTot < baseCapital * (1 - this.rebalancePct) ||
