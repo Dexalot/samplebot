@@ -47,7 +47,7 @@ abstract class AbstractBot {
   protected interval = 20000;
   protected orderbook: any; //local orderbook to keep track of my own orders ONLY
   protected chainOrderbook: any; //orderbook from the chain
-  protected orderUptader: NodeJS.Timeout | undefined;
+  protected orderUpdater: NodeJS.Timeout | undefined;
   protected rebalancePct = 0.9;
   protected portfolioRebalanceAtStart = false;
   protected lastExecution: any;
@@ -336,8 +336,8 @@ abstract class AbstractBot {
     const savetoDb = this.status;
     this.logger.warn(`${this.instanceName} Stoppig bot...`);
     this.status = false;
-    if (this.orderUptader !== undefined) {
-      clearTimeout(this.orderUptader);
+    if (this.orderUpdater !== undefined) {
+      clearTimeout(this.orderUpdater);
     }
     if (this.getSettingValue("CANCEL_ALL_AT_STOP") === "Y") {
       this.cancelOrderList()
@@ -472,50 +472,12 @@ abstract class AbstractBot {
       this.addOrderToMap(order);
     }
 
-    // //buy orders
-    // for (let i = 0; i < 6; i++) {
-    //   const clientOrderId = await this.getClientOrderId(blocknumber, i);
-    //   const priceToSend = utils.parseUnits(
-    //     (100 - i).toFixed(this.quoteDisplayDecimals),
-    //     this.contracts[this.quote].tokenDetails.evmdecimals
-    //   );
-    //   const quantityToSend = utils.parseUnits(
-    //     (10 + i).toFixed(this.baseDisplayDecimals),
-    //     this.contracts[this.base].tokenDetails.evmdecimals
-    //   );
-    //   clientOrderIds.push(clientOrderId);
-
-    //   prices.push(priceToSend);
-    //   quantities.push(quantityToSend);
-    //   sides.push(0);
-    //   type2s.push(0);
-
-    //   const order = this.makeOrder(
-    //     this.account,
-    //     this.tradePairByte32,
-    //     "", // orderid not assigned by the smart contract yet
-    //     clientOrderId,
-    //     priceToSend,
-    //     0,
-    //     quantityToSend,
-    //     0,
-    //     1,
-    //     0, //Buy , Limit, GTC
-    //     9, //PENDING status
-    //     0,
-    //     0,
-    //     "",
-    //     0,
-    //     0,
-    //     0,
-    //     0
-    //   );
-
-    //   this.addOrderToMap(order);
-    // }
-
     try {
+      console.log("GETTING GAS ESTIMATION", prices, quantities, sides);
+      
       const gasest = await this.getAddOrderListGasEstimate(clientOrderIds, prices, quantities, sides, type2s);
+
+      console.log("SENDING ORDER LIST");
 
       this.logger.warn(`${this.instanceName} Gas Est ${gasest.toString()}`);
       const tx = await this.tradePair.addLimitOrderList(

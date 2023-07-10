@@ -40,7 +40,7 @@ class SampleBot extends AbstractBot {
   async startOrderUpdater() {
     if (this.status) {
       // Enable the next line if you need the bot to run continuously
-      // this.orderUptader = setTimeout( () => this.updateOrders(), this.interval );
+      // this.orderUpdater = setTimeout( () => this.updateOrders(), this.interval );
       // Comment out if you need the bot to run continuously
       this.updateOrders();
     } else {
@@ -49,8 +49,8 @@ class SampleBot extends AbstractBot {
   }
 
   async updateOrders() {
-    if (this.orderUptader != undefined) {
-      clearTimeout(this.orderUptader);
+    if (this.orderUpdater != undefined) {
+      clearTimeout(this.orderUpdater);
     }
 
     try {
