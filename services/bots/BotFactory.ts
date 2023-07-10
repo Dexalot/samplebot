@@ -2,8 +2,8 @@
 
 
 import SampleBot from "./SampleBot";
-import LoadBot from "./LoadBot";
-const Bot:any = {  SampleBot, LoadBot};
+import avax_usdc from "./avax_usdc";
+const Bot:any = {  SampleBot, avax_usdc};
 
 module.exports = {
     createBot(type:any, attributes:any) {

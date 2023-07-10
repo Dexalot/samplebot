@@ -9,6 +9,7 @@ import { BigNumber as BigNumberEthers } from "ethers";
 import axios from "axios";
 import { getLogger } from "../logger";
 import OrderBook from "./orderbook";
+import NewOrder from "./classes";
 
 import ERC20ABI from "../../artifacts/contracts/ERC20.json";
 import OrderBookRecordRaw from "../../models/orderBookRecordRaw";
@@ -61,6 +62,12 @@ abstract class AbstractBot {
   protected tokenDetails: any;
   protected signature: any;
   protected axiosConfig: any;
+
+  protected bidSpread: any;
+  protected askSpread: any;
+  protected orderLevels: any;
+  protected orderLevelSpread: any;
+  protected orderLevelQty: any;
 
   constructor(botId: number, pairStr: string, privateKey: string, ratelimit_token?: string) {
     this.logger = getLogger("Bot");
@@ -415,8 +422,7 @@ abstract class AbstractBot {
     return new BigNumber(this.minTradeAmnt * (1 + Math.random() * 0.2)).div(price);
   }
 
-  // Reference implementation, it just send 6 buy limit GTC orders with prices from 94 to 100
-  async addLimitOrderList() {
+  async addLimitOrderList(newOrders: NewOrder[]) {
     const clientOrderIds = [];
     const prices = [];
     const quantities = [];
@@ -424,22 +430,22 @@ abstract class AbstractBot {
     const type2s = [];
 
     const blocknumber = (await this.contracts["SubNetProvider"].provider.getBlockNumber()) || 0;
-    //buy orders
-    for (let i = 0; i < 6; i++) {
+
+    for (let i = 0; i < newOrders.length; i++){
       const clientOrderId = await this.getClientOrderId(blocknumber, i);
       const priceToSend = utils.parseUnits(
-        (100 - i).toFixed(this.quoteDisplayDecimals),
+        newOrders[i].price.toFixed(this.quoteDisplayDecimals),
         this.contracts[this.quote].tokenDetails.evmdecimals
       );
       const quantityToSend = utils.parseUnits(
-        (10 + i).toFixed(this.baseDisplayDecimals),
+        newOrders[i].quantity.toFixed(this.baseDisplayDecimals),
         this.contracts[this.base].tokenDetails.evmdecimals
       );
       clientOrderIds.push(clientOrderId);
 
       prices.push(priceToSend);
       quantities.push(quantityToSend);
-      sides.push(0);
+      sides.push(newOrders[i].side);
       type2s.push(0);
 
       const order = this.makeOrder(
@@ -465,6 +471,48 @@ abstract class AbstractBot {
 
       this.addOrderToMap(order);
     }
+
+    // //buy orders
+    // for (let i = 0; i < 6; i++) {
+    //   const clientOrderId = await this.getClientOrderId(blocknumber, i);
+    //   const priceToSend = utils.parseUnits(
+    //     (100 - i).toFixed(this.quoteDisplayDecimals),
+    //     this.contracts[this.quote].tokenDetails.evmdecimals
+    //   );
+    //   const quantityToSend = utils.parseUnits(
+    //     (10 + i).toFixed(this.baseDisplayDecimals),
+    //     this.contracts[this.base].tokenDetails.evmdecimals
+    //   );
+    //   clientOrderIds.push(clientOrderId);
+
+    //   prices.push(priceToSend);
+    //   quantities.push(quantityToSend);
+    //   sides.push(0);
+    //   type2s.push(0);
+
+    //   const order = this.makeOrder(
+    //     this.account,
+    //     this.tradePairByte32,
+    //     "", // orderid not assigned by the smart contract yet
+    //     clientOrderId,
+    //     priceToSend,
+    //     0,
+    //     quantityToSend,
+    //     0,
+    //     1,
+    //     0, //Buy , Limit, GTC
+    //     9, //PENDING status
+    //     0,
+    //     0,
+    //     "",
+    //     0,
+    //     0,
+    //     0,
+    //     0
+    //   );
+
+    //   this.addOrderToMap(order);
+    // }
 
     try {
       const gasest = await this.getAddOrderListGasEstimate(clientOrderIds, prices, quantities, sides, type2s);
@@ -577,40 +625,14 @@ abstract class AbstractBot {
             utils.printBalances(this.account, this.quote, this.contracts[this.quote]);
             return;
           }
-          if (this.washTradeCheck) {
-            const myBestask = this.orderbook.bestask();
-            if (myBestask && ordtype === 1) {
-              const order = this.orders.get(myBestask.orders[0].clientOrderId);
-              if (order && price.gte(order.price)) {
-                this.logger.warn(
-                  `${this.instanceName} 'Wash trade not allowed. New BUY order price ${price.toFixed(
-                    this.quoteDisplayDecimals
-                  )} >= Best Ask ${order.price.toString()}`
-                );
-                return;
-              }
-            }
-          }
+          this.checkWashTrade(side, price);
         } else {
           if (!funds) {
             this.logger.error(`${this.instanceName} Not enough funds to add SELL order`);
             utils.printBalances(this.account, this.base, this.contracts[this.base]);
             return;
           }
-          if (this.washTradeCheck) {
-            const myBestbid = this.orderbook.bestbid();
-            if (myBestbid && ordtype === 1) {
-              const order = this.orders.get(myBestbid.orders[0].clientOrderId);
-              if (order && price.lte(order.price)) {
-                this.logger.warn(
-                  `${this.instanceName} 'Wash trade not allowed. New SELL order price ${price.toFixed(
-                    this.quoteDisplayDecimals
-                  )} <= Best Bid ${order.price.toString()}`
-                );
-                return;
-              }
-            }
-          }
+          this.checkWashTrade(side, price);
         }
 
         this.orderCount++;
@@ -1306,35 +1328,8 @@ abstract class AbstractBot {
     }
 
     try {
-      if (this.washTradeCheck) {
-        if (order.side === 0) {
-          const myBestask = this.orderbook.bestask();
-          if (myBestask) {
-            const orderBAsk = this.orders.get(myBestask.orders[0].clientOrderId);
-            if (orderBAsk && price.gte(orderBAsk.price)) {
-              this.logger.warn(
-                `${this.instanceName} 'Wash trade in C/R not allowed. New BUY order price ${price.toFixed(
-                  this.quoteDisplayDecimals
-                )} >= Best Ask ${orderBAsk.price.toString()}`
-              );
-              return;
-            }
-          }
-        } else {
-          const myBestbid = this.orderbook.bestbid();
-          if (myBestbid) {
-            const orderBBid = this.orders.get(myBestbid.orders[0].clientOrderId);
-            if (orderBBid && price.lte(orderBBid.price)) {
-              this.logger.warn(
-                `${this.instanceName} 'Wash trade in C/R not allowed. New SELL order price ${price.toFixed(
-                  this.quoteDisplayDecimals
-                )} <= Best Bid ${orderBBid.price.toString()}`
-              );
-              return;
-            }
-          }
-        }
-      }
+
+      this.checkWashTrade(order.side, price);
 
       const priceToSend = utils.parseUnits(price.toFixed(this.quoteDisplayDecimals), this.contracts[this.quote].tokenDetails.evmdecimals);
       const quantityToSend = utils.parseUnits(
@@ -1873,6 +1868,39 @@ abstract class AbstractBot {
         }
       }
       return false;
+    }
+  }
+
+  async checkWashTrade(side: number, price: BigNumber) {
+    if (this.washTradeCheck) {
+      if (side === 0){
+        const myBestbid = this.orderbook.bestbid();
+        if (myBestbid) {
+          const order = this.orders.get(myBestbid.orders[0].clientOrderId);
+          if (order && price.lte(order.price)) {
+            this.logger.warn(
+              `${this.instanceName} 'Wash trade not allowed. New SELL order price ${price.toFixed(
+                this.quoteDisplayDecimals
+              )} <= Best Bid ${order.price.toString()}`
+            );
+            return;
+          }
+        }
+      } else if (side === 1){
+        const myBestbid = this.orderbook.bestbid();
+        if (myBestbid) {
+          const order = this.orders.get(myBestbid.orders[0].clientOrderId);
+          if (order && price.lte(order.price)) {
+            this.logger.warn(
+              `${this.instanceName} 'Wash trade not allowed. New SELL order price ${price.toFixed(
+                this.quoteDisplayDecimals
+              )} <= Best Bid ${order.price.toString()}`
+            );
+            return;
+          }
+        }
+      }
+      
     }
   }
 
