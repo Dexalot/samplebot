@@ -62,38 +62,7 @@ class avax_usdc extends AbstractBot {
       await this.cancelOrderList([], 100);
 
       // ------------ Create and Send Initial Order List ------------ //
-      
-      const marketPrice = this.getPrice(1).toNumber();
-      const initialBidPrice = marketPrice * (1-this.bidSpread/100);
-      const initialAskPrice = marketPrice * (1+this.askSpread/100);
-      let bidsEnroute = 0;
-      let asksEnRoute = 0;
-
-      let newOrderList : NewOrder[] = [];
-      // ------- SET BIDS --------- //
-      for (let i = 0; i < this.orderLevels; i++) {
-        let bidPrice = new BigNumber(initialBidPrice * (1-(i*this.orderLevelSpread/100)));
-        let bidQty = new BigNumber(this.getQty(bidPrice,0,i,this.contracts[this.quote].portfolioTot - (bidsEnroute * bidPrice.toNumber())));
-        if (bidQty.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
-          bidsEnroute += bidQty.toNumber();
-          console.log("BID LEVEL ",i,": BID PRICE: ", bidPrice.toNumber(),", BID QTY: ",bidQty.toNumber(), "Portfolio Tot: ",this.contracts[this.quote].portfolioTot);
-          newOrderList.push(new NewOrder(0,bidQty,bidPrice));
-        }
-      }
-
-      // ------- SET ASKS --------- //
-      for (let i = 0; i < this.orderLevels; i++) {
-        let askPrice = new BigNumber(initialAskPrice * (1+(i*this.orderLevelSpread/100)));
-        let askQty = new BigNumber(this.getQty(askPrice,1,i,this.contracts[this.base].portfolioTot - asksEnRoute));
-        console.log("ASK LEVEL ",i,": ASK PRICE: ", askPrice.toNumber(),", ASK QTY: ",askQty.toNumber(), "Portfolio Tot: ",this.contracts[this.base].portfolioTot);
-        if (askQty.toNumber() * askPrice.toNumber() > this.minTradeAmnt){
-          asksEnRoute += askQty.toNumber();
-          newOrderList.push(new NewOrder(1,askQty,askPrice));
-        }
-      }
-
-      console.log("NEW ORDER LIST:",newOrderList);
-      await this.addLimitOrderList(newOrderList);
+      await this.placeInitialOrders()
 
       // ------------ Begin Order Updater ------------ //
 
@@ -112,7 +81,6 @@ class avax_usdc extends AbstractBot {
     try {
       this.counter ++;
       console.log("000000000000000 COUNTER:",this.counter);
-
       
       const marketPrice = this.getPrice(1).toNumber();
       const initialBidPrice = marketPrice * (1-this.bidSpread/100);
@@ -124,26 +92,33 @@ class avax_usdc extends AbstractBot {
       let baseEnRoute = 0;
       let quoteEnRoute = 0;
 
+      if (bids.length < this.orderLevels){
+        this.placeInitialOrders(true,false);
+      } else {
+        bids.forEach((e: any,i: number) => {
+          let bidPrice = new BigNumber(initialBidPrice * (1-(i*this.orderLevelSpread/100)));
+          let bidQty = new BigNumber(this.getQty(bidPrice,0,i,this.contracts[this.base].portfolioTot + (e.quantity * bidPrice.toNumber()) - quoteEnRoute));
+          if (bidQty.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
+            quoteEnRoute += bidQty.toNumber();
+            this.cancelReplaceOrder(e,bidPrice,bidQty);
+          } else {
+            return;
+          }
+        })
+      }
 
-      bids.forEach((e: any,i: number) => {
-        let bidPrice = new BigNumber(initialBidPrice * (1-(i*this.orderLevelSpread/100)));
-        let bidQty = new BigNumber(this.getQty(bidPrice,0,i,this.contracts[this.base].portfolioTot + (e.quantity * bidPrice.toNumber()) - quoteEnRoute));
-        if (bidQty.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
-          quoteEnRoute += bidQty.toNumber();
-          this.cancelReplaceOrder(e,bidPrice,bidQty);
-        } else {
-          return;
-        }
-      })
-
-      asks.forEach((e: any,i: number) => {
-        let askPrice = new BigNumber(initialAskPrice * (1+(i*this.orderLevelSpread/100)));
-        let askQty = new BigNumber(this.getQty(askPrice,1,i,this.contracts[this.quote].portfolioTot + e.quantity - baseEnRoute));
-        if (askQty.toNumber() * askPrice.toNumber() > this.minTradeAmnt){
-          baseEnRoute += askQty.toNumber();
-          this.cancelReplaceOrder(e,askPrice,askQty);
-        }
-      })
+      if (asks.length < this.orderLevels){
+        this.placeInitialOrders(false,true);
+      } else {
+        asks.forEach((e: any,i: number) => {
+          let askPrice = new BigNumber(initialAskPrice * (1+(i*this.orderLevelSpread/100)));
+          let askQty = new BigNumber(this.getQty(askPrice,1,i,this.contracts[this.quote].portfolioTot + e.quantity - baseEnRoute));
+          if (askQty.toNumber() * askPrice.toNumber() > this.minTradeAmnt){
+            baseEnRoute += askQty.toNumber();
+            this.cancelReplaceOrder(e,askPrice,askQty);
+          }
+        })
+      }
 
         
 
@@ -160,6 +135,44 @@ class avax_usdc extends AbstractBot {
       //Update Orders Again
       this.updateOrders();
     }
+  }
+
+  async placeInitialOrders(setBids: boolean = true, setAsks: boolean = true){
+    const marketPrice = this.getPrice(1).toNumber();
+    const initialBidPrice = marketPrice * (1-this.bidSpread/100);
+    const initialAskPrice = marketPrice * (1+this.askSpread/100);
+    let newOrderList : NewOrder[] = [];
+    // --------------- SET BIDS --------------- //
+    if (setBids){
+      let bidsEnroute = 0;
+      for (let i = 0; i < this.orderLevels; i++) {
+        let bidPrice = new BigNumber(initialBidPrice * (1-(i*this.orderLevelSpread/100)));
+        let bidQty = new BigNumber(this.getQty(bidPrice,0,i,this.contracts[this.quote].portfolioTot - (bidsEnroute * bidPrice.toNumber())));
+        if (bidQty.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
+          bidsEnroute += bidQty.toNumber();
+          console.log("BID LEVEL ",i,": BID PRICE: ", bidPrice.toNumber(),", BID QTY: ",bidQty.toNumber(), "Portfolio Tot: ",this.contracts[this.quote].portfolioTot);
+          newOrderList.push(new NewOrder(0,bidQty,bidPrice));
+        }
+      }
+    }
+
+    // --------------- SET ASKS --------------- //
+    if (setAsks){
+      let asksEnRoute = 0;
+      for (let i = 0; i < this.orderLevels; i++) {
+        let askPrice = new BigNumber(initialAskPrice * (1+(i*this.orderLevelSpread/100)));
+        let askQty = new BigNumber(this.getQty(askPrice,1,i,this.contracts[this.base].portfolioTot - asksEnRoute));
+        console.log("ASK LEVEL ",i,": ASK PRICE: ", askPrice.toNumber(),", ASK QTY: ",askQty.toNumber(), "Portfolio Tot: ",this.contracts[this.base].portfolioTot);
+        if (askQty.toNumber() * askPrice.toNumber() > this.minTradeAmnt){
+          asksEnRoute += askQty.toNumber();
+          newOrderList.push(new NewOrder(1,askQty,askPrice));
+        }
+      }
+    }
+    
+    console.log("NEW ORDER LIST:",newOrderList);
+    // --------------- EXECUTE ORDERS --------------- //
+    await this.addLimitOrderList(newOrderList);
   }
 
   getQty(price: BigNumber, side: number, level: number, availableFunds: number): number {

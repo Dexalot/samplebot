@@ -473,11 +473,8 @@ abstract class AbstractBot {
     }
 
     try {
-      console.log("GETTING GAS ESTIMATION", prices, quantities, sides);
       
       const gasest = await this.getAddOrderListGasEstimate(clientOrderIds, prices, quantities, sides, type2s);
-
-      console.log("SENDING ORDER LIST");
 
       this.logger.warn(`${this.instanceName} Gas Est ${gasest.toString()}`);
       const tx = await this.tradePair.addLimitOrderList(
