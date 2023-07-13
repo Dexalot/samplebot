@@ -339,45 +339,27 @@ abstract class AbstractBot {
     if (this.orderUpdater !== undefined) {
       clearTimeout(this.orderUpdater);
     }
-    if (this.getSettingValue("CANCEL_ALL_AT_STOP") === "Y") {
-      this.cancelOrderList()
-        .then(() => {
-          this.logger.warn(`${this.instanceName} Waiting 5 seconds before removing order listeners"...`);
-          setTimeout(async () => {
-            if (savetoDb) {
-              await this.saveBalancestoDb(false);
-            }
-            if (this.PNL) {
-              this.PNL.reset();
-            }
-            if (this.filter) {
-              //Give 5 seconds before removing listeners
-              this.tradePair.removeAllListeners();
-              this.filter = undefined;
-              this.logger.warn(`${this.instanceName} Removed order listeners`);
-            }
-          }, 5000);
-        })
-        .catch((e: any) => {
-          this.logger.error(`${this.instanceName} problem in Bot Stop + ${e.message}`);
-        });
-    } else {
-      this.logger.warn(`${this.instanceName} Waiting 5 seconds before removing order listeners"...`);
-      setTimeout(async () => {
-        if (savetoDb) {
-          await this.saveBalancestoDb(false);
-        }
-        if (this.PNL) {
-          this.PNL.reset();
-        }
-        if (this.filter) {
-          //Give 5 seconds before removing listeners
-          this.tradePair.removeAllListeners();
-          this.filter = undefined;
-          this.logger.warn(`${this.instanceName} Removed order listeners`);
-        }
-      }, 5000);
-    }
+    this.cancelOrderList()
+      .then(() => {
+        this.logger.warn(`${this.instanceName} Waiting 5 seconds before removing order listeners"...`);
+        setTimeout(async () => {
+          if (savetoDb) {
+            await this.saveBalancestoDb(false);
+          }
+          if (this.PNL) {
+            this.PNL.reset();
+          }
+          if (this.filter) {
+            //Give 5 seconds before removing listeners
+            this.tradePair.removeAllListeners();
+            this.filter = undefined;
+            this.logger.warn(`${this.instanceName} Removed order listeners`);
+          }
+        }, 5000);
+      })
+      .catch((e: any) => {
+        this.logger.error(`${this.instanceName} problem in Bot Stop + ${e.message}`);
+      });
   }
 
   getSettingValue(settingname: string) {
@@ -456,7 +438,7 @@ abstract class AbstractBot {
         priceToSend,
         0,
         quantityToSend,
-        0,
+        newOrders[i].side,
         1,
         0, //Buy , Limit, GTC
         9, //PENDING status
@@ -466,7 +448,8 @@ abstract class AbstractBot {
         0,
         0,
         0,
-        0
+        0,
+        newOrders[i].level,
       );
 
       this.addOrderToMap(order);
@@ -548,7 +531,7 @@ abstract class AbstractBot {
     }
   }
 
-  async addOrder(side: number, qty: BigNumber | undefined, px: BigNumber | undefined, ordtype = 1, ordType2 = 0) {
+  async addOrder(side: number, qty: BigNumber | undefined, px: BigNumber | undefined, ordtype = 1, ordType2 = 0, level: number) {
     // LIMIT ORDER  & GTC)
     if (!this.status) {
       return;
@@ -632,7 +615,8 @@ abstract class AbstractBot {
           0,
           0,
           0,
-          0
+          0,
+          level,
         );
 
         this.addOrderToMap(order);
@@ -726,7 +710,7 @@ abstract class AbstractBot {
     }
     const timestamp = new Date().toISOString();
     if (this.account) {
-      const id = eutils.toUtf8Bytes(`${this.account}${blocknumber}${timestamp}${counter}`);
+      const id = eutils.toUtf8Bytes(`${this.account}${this.tradePairByte32}${blocknumber}${timestamp}${counter}`);
       return eutils.keccak256(id);
     }
     return "";
@@ -955,7 +939,8 @@ abstract class AbstractBot {
     blocknbr: any,
     gasUsed: any,
     gasPrice: any,
-    cumulativeGasUsed: any
+    cumulativeGasUsed: any,
+    level: number = 0,
   ): any {
     return new Order({
       id,
@@ -979,7 +964,8 @@ abstract class AbstractBot {
       blocknbr,
       gasUsed,
       gasPrice: utils.formatUnits(gasPrice, 9),
-      cumulativeGasUsed
+      cumulativeGasUsed,
+      level,
     });
   }
 
@@ -1112,7 +1098,7 @@ abstract class AbstractBot {
     }
     const existingOrder = this.orders.get(order.clientOrderId);
     if (existingOrder) {
-      if (order.quantityfilled.gt(existingOrder.quantityfilled)) {
+      if (order.quantityfilled && order.quantityfilled.gt(existingOrder.quantityfilled)) {
         this.setLastExecution(order, order.quantityfilled.minus(existingOrder.quantityfilled).toNumber(), order.side === 0 ? 1 : 0);
       }
       this.orders.delete(order.clientOrderId);
@@ -1260,14 +1246,14 @@ abstract class AbstractBot {
       } else {
         const reason = await this.getRevertReason(error);
         if (reason) {
-          if (reason === "T-OAEX-01") {
-            this.removeOrderFromMap(order);
-          }
           this.logger.warn(
             `${this.instanceName} Order Cancel error ${order.side === 0 ? "BUY" : "SELL"} ::: ${order.quantity.toFixed(
               this.baseDisplayDecimals
             )} @ ${order.price.toFixed(this.quoteDisplayDecimals)} Revert Reason ${reason}`
           );
+          if (reason === "T-OAEX-01") {
+            this.removeOrderFromMap(order);
+          }
         } else {
           this.logger.error(
             `${this.instanceName} Order Cancel error ${order.side === 0 ? "BUY" : "SELL"} ::: ${order.quantity.toFixed(
@@ -1281,13 +1267,12 @@ abstract class AbstractBot {
     }
   }
 
-  async cancelReplaceOrder(order: any, quantity: BigNumber, price: BigNumber) {
+  async cancelReplaceOrder(order: any, price: BigNumber, quantity: BigNumber) {
     if (!this.status) {
       return;
     }
 
     try {
-
       this.checkWashTrade(order.side, price);
 
       const priceToSend = utils.parseUnits(price.toFixed(this.quoteDisplayDecimals), this.contracts[this.quote].tokenDetails.evmdecimals);
@@ -1295,18 +1280,24 @@ abstract class AbstractBot {
         quantity.toFixed(this.baseDisplayDecimals),
         this.contracts[this.base].tokenDetails.evmdecimals
       );
-      const clientOrderId = await this.getClientOrderId();
+      
+      const clientOrderId = await this.getClientOrderId(0,order.level);
       // Not using the gasEstimate because it fails with P-AFNE1 when funds are tight but the actual C/R doesn't
 
-      // const gasest= await this.getCancelReplaceOrderGasEstimate(order.id, clientOrderId ,priceToSend, quantityToSend);
+      console.log("CANCEL REPLACE: Orderid to replace:",order.id, " New clientOrderid: ", clientOrderId," PRICE:", price.toNumber(), " QTY: ", quantity.toNumber());
+
+      const gasest = await this.getCancelReplaceOrderGasEstimate(order.id, clientOrderId ,priceToSend, quantityToSend);
+
+      console.log("CANCEL REPLACE: GOT GASEST");
+
       // this.logger.debug (`${this.instanceName} CancelReplace order gasEstimate: ${gasest} `); // ${tcost}
       this.orderCount++;
       this.logger.debug(
         `${this.instanceName} Cancel/Replace OrderNbr: ${this.orderCount} ${
           order.side === 0 ? "BUY" : "SELL"
-        } ::: ${order.quantity.toString()} ${this.base} @ ${order.price.toString()} ${this.quote}`
+        } ::: ${quantity.toString()} ${this.base} @ ${price.toString()} ${this.quote}`
       );
-      const options = await this.getOptions(this.contracts["SubNetProvider"], BigNumberEthers.from(1000000));
+      const options = await this.getOptions(this.contracts["SubNetProvider"], gasest);
       const tx = await this.tradePair.cancelReplaceOrder(order.id, clientOrderId, priceToSend, quantityToSend, options);
       const orderLog = await tx.wait();
 
@@ -1344,27 +1335,26 @@ abstract class AbstractBot {
       const idx = error.message.indexOf(nonceErr);
       if (error.code === "NONCE_EXPIRED" || idx > -1) {
         this.logger.warn(
-          `${this.instanceName} Order Cancel/Replace error ${order.side === 0 ? "BUY" : "SELL"} ::: ${order.quantity.toFixed(
+          `${this.instanceName} Order Cancel/Replace error ${order.side === 0 ? "BUY" : "SELL"} ::: ${quantity.toFixed(
             this.baseDisplayDecimals
-          )} @ ${order.price.toFixed(this.quoteDisplayDecimals)} Invalid Nonce`
+          )} @ ${price.toFixed(this.quoteDisplayDecimals)} Invalid Nonce`
         );
         await this.correctNonce(this.contracts["SubNetProvider"]);
       } else {
         const reason = await this.getRevertReason(error);
         if (reason) {
-          if (reason === "T-OAEX-01") {
-            this.removeOrderFromMap(order);
-          }
+          console.log("ERR", error);
           this.logger.warn(
-            `${this.instanceName} Order Cancel/Replace error ${order.side === 0 ? "BUY" : "SELL"} ::: ${order.quantity.toFixed(
+            `${this.instanceName} Order Cancel/Replace error ${order.side === 0 ? "BUY" : "SELL"} ::: ${quantity.toFixed(
               this.baseDisplayDecimals
-            )} @ ${order.price.toFixed(this.quoteDisplayDecimals)} Revert Reason ${reason}`
+            )} @ ${price.toFixed(this.quoteDisplayDecimals)} Revert Reason ${reason}`
           );
         } else {
+          console.log("ERR2: ", error);
           this.logger.error(
-            `${this.instanceName} Order Cancel/Replace error ${order.side === 0 ? "BUY" : "SELL"} ::: ${order.quantity.toFixed(
+            `${this.instanceName} Order Cancel/Replace error ${order.side === 0 ? "BUY" : "SELL"} ::: ${quantity.toFixed(
               this.baseDisplayDecimals
-            )} @ ${order.price.toFixed(this.quoteDisplayDecimals)}`,
+            )} @ ${price.toFixed(this.quoteDisplayDecimals)}`,
             error
           );
         }
@@ -1833,18 +1823,18 @@ abstract class AbstractBot {
   async checkWashTrade(side: number, price: BigNumber) {
     if (this.washTradeCheck) {
       if (side === 0){
-        const myBestbid = this.orderbook.bestbid();
-        if (myBestbid) {
-          const order = this.orders.get(myBestbid.orders[0].clientOrderId);
-          if (order && price.lte(order.price)) {
-            this.logger.warn(
-              `${this.instanceName} 'Wash trade not allowed. New SELL order price ${price.toFixed(
-                this.quoteDisplayDecimals
-              )} <= Best Bid ${order.price.toString()}`
-            );
-            return;
+        const myBestask = this.orderbook.bestask();
+          if (myBestask) {
+            const orderBAsk = this.orders.get(myBestask.orders[0].clientOrderId);
+            if (orderBAsk && price.gte(orderBAsk.price)) {
+              this.logger.warn(
+                `${this.instanceName} 'Wash trade in C/R not allowed. New BUY order price ${price.toFixed(
+                  this.quoteDisplayDecimals
+                )} >= Best Ask ${orderBAsk.price.toString()}`
+              );
+              return;
+            }
           }
-        }
       } else if (side === 1){
         const myBestbid = this.orderbook.bestbid();
         if (myBestbid) {
@@ -1867,8 +1857,8 @@ abstract class AbstractBot {
     if (!this.cleanupCalled) {
       this.logger.warn(`${this.instanceName} === Process Exit Called === `);
       this.cleanupCalled = true;
-      this.stop();
-      const timeout = Math.max(7, this.getSettingValue("CLEAR_TIMOUT_SECONDS") || 10); //Min 6 seconds because this.stop calls cancelall and waits for 5 seconds
+      await this.stop();
+      const timeout = 10; //Min 6 seconds because this.stop calls cancelall and waits for 5 seconds
       setTimeout(() => {
         this.logger.warn(`${this.instanceName} === SHUTTING DOWN === `);
         process.exit(0);

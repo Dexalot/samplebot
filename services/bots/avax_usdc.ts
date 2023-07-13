@@ -3,7 +3,9 @@ import utils from "../utils";
 import BigNumber from "bignumber.js";
 import AbstractBot from "./AbstractBot";
 import NewOrder from "./classes";
+import Order from "../../models/order";
 import { error } from "console";
+import { BrotliDecompress } from "zlib";
 
 class avax_usdc extends AbstractBot {
   protected marketPrice = new BigNumber(17); //AVAX/USDC
@@ -19,7 +21,7 @@ class avax_usdc extends AbstractBot {
     this.bidSpread = 0.3;
     this.askSpread = 0.3;
     this.orderLevels = 2;
-    this.orderLevelSpread = 0.05;
+    this.orderLevelSpread = 0.1;
     this.orderLevelQty = BigNumber(10); 
   }
 
@@ -62,11 +64,19 @@ class avax_usdc extends AbstractBot {
       await this.cancelOrderList([], 100);
 
       // ------------ Create and Send Initial Order List ------------ //
-      await this.placeInitialOrders()
+      let levels : number[][] = [];
+      for (let i = 1; i <= this.orderLevels; i++){
+        levels.push([0,i]);
+        levels.push([1,i]);
+      }
+
+      await this.placeInitialOrders(levels);
 
       // ------------ Begin Order Updater ------------ //
 
-      this.updateOrders();
+      this.orderUpdater = setTimeout(()=>{
+        this.updateOrders();
+      }, this.interval);
 
     } else {
       this.logger.warn(`${this.instanceName} Bot Status set to false, will not send orders`);
@@ -83,110 +93,138 @@ class avax_usdc extends AbstractBot {
       console.log("000000000000000 COUNTER:",this.counter);
       
       const marketPrice = this.getPrice(1).toNumber();
-      const initialBidPrice = marketPrice * (1-this.bidSpread/100);
-      const initialAskPrice = marketPrice * (1+this.askSpread/100);
+      const startingBidPrice = marketPrice * (1-this.bidSpread/100);
+      const startingAskPrice = marketPrice * (1+this.askSpread/100);
 
-      let bids = sortOrders(this.orderbook.state().bids, "price", "descending");
-      let asks = sortOrders(this.orderbook.state().asks, "price", "ascending");
 
-      let baseEnRoute = 0;
-      let quoteEnRoute = 0;
+      let bids: object[] = []; 
+      let asks: object[] = [];
 
-      if (bids.length < this.orderLevels){
-        this.placeInitialOrders(true,false);
+      this.orders.forEach((e,i)=>{
+        if (e.side === 0){
+          bids.push({side:e.side,id:e.id,price:e.price.toNumber(),level:e.level,status:e.status, totalamount:e.totalamount,quantityfilled:e.quantityfilled});
+        } else {
+          asks.push({side:e.side,id:e.id,price:e.price.toNumber()});
+        }
+      })      
+    
+      let bidsSorted = sortOrders(bids, "price", "descending");
+      let asksSorted = sortOrders(asks, "price", "ascending");
+
+      // await this.cancelOrderList([], 100);
+
+      // ------------ Create and Send Initial Order List ------------ //
+
+      console.log("BIDS SORTED:",bidsSorted,"this.orderLevels:",this.orderLevels);
+
+      if (bidsSorted.length < this.orderLevels){
+        //this.placeInitialOrders(true,false);
       } else {
-        bids.forEach((e: any,i: number) => {
-          let bidPrice = new BigNumber(initialBidPrice * (1-(i*this.orderLevelSpread/100)));
-          let bidQty = new BigNumber(this.getQty(bidPrice,0,i,this.contracts[this.base].portfolioTot + (e.quantity * bidPrice.toNumber()) - quoteEnRoute));
-          if (bidQty.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
-            quoteEnRoute += bidQty.toNumber();
-            this.cancelReplaceOrder(e,bidPrice,bidQty);
-          } else {
-            return;
-          }
-        })
-      }
-
-      if (asks.length < this.orderLevels){
-        this.placeInitialOrders(false,true);
-      } else {
-        asks.forEach((e: any,i: number) => {
-          let askPrice = new BigNumber(initialAskPrice * (1+(i*this.orderLevelSpread/100)));
-          let askQty = new BigNumber(this.getQty(askPrice,1,i,this.contracts[this.quote].portfolioTot + e.quantity - baseEnRoute));
-          if (askQty.toNumber() * askPrice.toNumber() > this.minTradeAmnt){
-            baseEnRoute += askQty.toNumber();
-            this.cancelReplaceOrder(e,askPrice,askQty);
-          }
-        })
-      }
-
+        console.log("REPLACE BIDS: ",bidsSorted.length);
+        let bidsEnRoute = 0;
         
+        for (let i = 0; i < this.orderLevels; i ++){
+          let order = {id:null, status:null, totalamount:new BigNumber(0),quantityfilled:new BigNumber(0)};
+          for (let j = 0; j < bidsSorted.length; j++){
+            if (bidsSorted[j].level == i+1){
+              order = bidsSorted[j];
+              console.log("ORDER: ", order);
+            }
+          }
+          if (order.id && (order.status == 0 || order.status == 2 || order.status == 7)){
+            let bidPrice = new BigNumber(0.99 * startingBidPrice * (1-(i*this.orderLevelSpread/100)));
+            let bidQty = new BigNumber(this.getQty(bidPrice,0,i+1,this.contracts[this.quote].portfolioTot + (bidPrice.toNumber() * (order.totalamount.toNumber() - order.quantityfilled.toNumber())) - (bidsEnRoute * bidPrice.toNumber())));
+            if (bidQty.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
+              bidsEnRoute += (bidQty.toNumber() - (order.totalamount.toNumber() - order.quantityfilled.toNumber()));
+              console.log("REPLACE ORDER:",bidPrice,bidQty);
+              this.cancelReplaceOrder(order,bidPrice,bidQty);
+            } else {
+              console.log("NOT ENOUGH FUNDS TO REPLACE", bidPrice.toNumber(), this.contracts[this.quote].portfolioTot, order.totalamount.toNumber(), order.quantityfilled.toNumber(), bidsEnRoute);
+            }
+          } else {
+            console.log("MAKE FRESH ORDER");
+            this.placeInitialOrders([[0,i]]);
+          }
+        }
+      }
 
-      this.logger.debug(`orderbook:${JSON.stringify(this.getOrderBook())}`);
+      // if (asksSorted.length < this.orderLevels){
+      //   this.placeInitialOrders(false,true);
+      // } else {
+      //   let asksEnRoute = 0;
+      //   asksSorted.forEach(async (e: any,i: number) => {
+      //     e.level = i + 100; //for getClientOrderId if multiple orders are created simultaneously
+      //     let askPrice = new BigNumber(startingAskPrice * (1+(i*this.orderLevelSpread/100)));
+      //     let askQty = new BigNumber(this.getQty(askPrice,1,i,this.contracts[this.base].portfolioTot + e.quantity - asksEnRoute));
+      //     if (askQty.toNumber() * askPrice.toNumber() > this.minTradeAmnt){
+      //       asksEnRoute += askQty.toNumber();
+      //       await this.cancelReplaceOrder(e,askPrice,askQty);
+      //     }
+      //   })
+      // }
       
     } catch (error) {
       this.logger.error(`${this.instanceName} Error in UpdateOrders`, error);
-      process.exit(1);
+      this.cleanUpAndExit();
     } finally {
-      
-      // Wait before updating orders again
-      await utils.sleep(this.interval);
-      await this.cancelOrderList([], 100);
-      //Update Orders Again
-      this.updateOrders();
+      //Update orders again after interval
+      this.orderUpdater = setTimeout(()=>{
+        this.cleanUpAndExit();
+        // this.updateOrders();
+      }, this.interval);
     }
   }
 
-  async placeInitialOrders(setBids: boolean = true, setAsks: boolean = true){
+  // Takes in an array of arrays. The first number of each subarray is the side, the second is the level.
+  // For each subarray passed in, it creates a new order and adds it to newOrderList. At the end it calls addLimitOrderList with the newOrderList
+  async placeInitialOrders(levels: number[][]){
+
     const marketPrice = this.getPrice(1).toNumber();
     const initialBidPrice = marketPrice * (1-this.bidSpread/100);
     const initialAskPrice = marketPrice * (1+this.askSpread/100);
     let newOrderList : NewOrder[] = [];
     // --------------- SET BIDS --------------- //
-    if (setBids){
-      let bidsEnroute = 0;
-      for (let i = 0; i < this.orderLevels; i++) {
-        let bidPrice = new BigNumber(initialBidPrice * (1-(i*this.orderLevelSpread/100)));
-        let bidQty = new BigNumber(this.getQty(bidPrice,0,i,this.contracts[this.quote].portfolioTot - (bidsEnroute * bidPrice.toNumber())));
+    let bidsEnroute = 0;
+    let asksEnRoute = 0;
+    for (let x = 0; x < levels.length; x++){
+      if (levels[x][0] == 0){
+        let bidPrice = new BigNumber(initialBidPrice * (1-(levels[x][1]*this.orderLevelSpread/100)));
+        let bidQty = new BigNumber(this.getQty(bidPrice,0,levels[x][1],this.contracts[this.quote].portfolioTot - (bidsEnroute * bidPrice.toNumber())));
         if (bidQty.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
           bidsEnroute += bidQty.toNumber();
-          console.log("BID LEVEL ",i,": BID PRICE: ", bidPrice.toNumber(),", BID QTY: ",bidQty.toNumber(), "Portfolio Tot: ",this.contracts[this.quote].portfolioTot);
-          newOrderList.push(new NewOrder(0,bidQty,bidPrice));
+          console.log("BID LEVEL ",levels[x][0],": BID PRICE: ", bidPrice.toNumber(),", BID QTY: ",bidQty.toNumber(), "Portfolio Tot: ",this.contracts[this.quote].portfolioTot);
+          newOrderList.push(new NewOrder(0,bidQty,bidPrice,levels[x][1]));
         }
+      } else {
+      //--------------- SET ASKS --------------- //
+        // let askPrice = new BigNumber(initialAskPrice * (1+(levels[x][1]*this.orderLevelSpread/100)));
+        // let askQty = new BigNumber(this.getQty(askPrice,1,levels[x][1],this.contracts[this.base].portfolioTot - asksEnRoute));
+        // console.log("ASK LEVEL ",levels[x][1],": ASK PRICE: ", askPrice.toNumber(),", ASK QTY: ",askQty.toNumber(), "Portfolio Tot: ",this.contracts[this.base].portfolioTot);
+        // if (askQty.toNumber() * askPrice.toNumber() > this.minTradeAmnt){
+        //   asksEnRoute += askQty.toNumber();
+        //   newOrderList.push(new NewOrder(1,askQty,askPrice,levels[x][1]));
+        // }
       }
     }
 
-    // --------------- SET ASKS --------------- //
-    if (setAsks){
-      let asksEnRoute = 0;
-      for (let i = 0; i < this.orderLevels; i++) {
-        let askPrice = new BigNumber(initialAskPrice * (1+(i*this.orderLevelSpread/100)));
-        let askQty = new BigNumber(this.getQty(askPrice,1,i,this.contracts[this.base].portfolioTot - asksEnRoute));
-        console.log("ASK LEVEL ",i,": ASK PRICE: ", askPrice.toNumber(),", ASK QTY: ",askQty.toNumber(), "Portfolio Tot: ",this.contracts[this.base].portfolioTot);
-        if (askQty.toNumber() * askPrice.toNumber() > this.minTradeAmnt){
-          asksEnRoute += askQty.toNumber();
-          newOrderList.push(new NewOrder(1,askQty,askPrice));
-        }
-      }
-    }
-    
-    console.log("NEW ORDER LIST:",newOrderList);
-    // --------------- EXECUTE ORDERS --------------- //
+  //   // --------------- EXECUTE ORDERS --------------- //
     await this.addLimitOrderList(newOrderList);
   }
 
+  // Takes in price, side, level, and availableFunds. Returns amount to place.
+  // If there are enough availableFunds, it will return the intended amount according to configs, otherwise it will return as much as it can, otherwise it will return 0
   getQty(price: BigNumber, side: number, level: number, availableFunds: number): number {
     if (side === 0){
-      console.log("AVAILABLE FUNDS IN QUOTE BID: ",availableFunds, "AMOUNT: ",(level+1) * this.orderLevelQty.toNumber())
-      if ((level+1) * this.orderLevelQty.toNumber() < availableFunds){
-        return (level+1) * this.orderLevelQty.toNumber();
+      console.log("AVAILABLE FUNDS IN QUOTE BID: ",availableFunds, "AMOUNT: ",(level) * this.orderLevelQty.toNumber())
+      if ((level) * this.orderLevelQty.toNumber() < availableFunds){
+        return (level) * this.orderLevelQty.toNumber();
       } else if (availableFunds > this.minTradeAmnt * 1.1){
         return availableFunds*.9;
       } else { return 0;}
     } else if (side === 1) {
-      console.log("AVAILABLE FUNDS ASK: ",availableFunds, "AMOUNT: ",(level+1) * this.orderLevelQty.toNumber())
-      if ((level+1) * this.orderLevelQty.toNumber() < availableFunds){
-          return (level+1) * this.orderLevelQty.toNumber();
+      console.log("AVAILABLE FUNDS ASK: ",availableFunds, "AMOUNT: ",(level) * this.orderLevelQty.toNumber())
+      if ((level) * this.orderLevelQty.toNumber() < availableFunds){
+          return (level) * this.orderLevelQty.toNumber();
       } else if (availableFunds * price.toNumber() > this.minTradeAmnt * 1.1){
         return availableFunds * .9;
       } else {return 0;}
