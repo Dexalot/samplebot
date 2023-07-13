@@ -1280,24 +1280,28 @@ abstract class AbstractBot {
         quantity.toFixed(this.baseDisplayDecimals),
         this.contracts[this.base].tokenDetails.evmdecimals
       );
-      
-      const clientOrderId = await this.getClientOrderId(0,order.level);
+      //get unique counter to generate clientOrderId
+      let counter = order.level;
+      if (order.side == 1){
+        counter = counter + 100;
+      }
+      const clientOrderId = await this.getClientOrderId(0,counter);
       // Not using the gasEstimate because it fails with P-AFNE1 when funds are tight but the actual C/R doesn't
 
       console.log("CANCEL REPLACE: Orderid to replace:",order.id, " New clientOrderid: ", clientOrderId," PRICE:", price.toNumber(), " QTY: ", quantity.toNumber());
 
-      const gasest = await this.getCancelReplaceOrderGasEstimate(order.id, clientOrderId ,priceToSend, quantityToSend);
+      //const gasest = await this.getCancelReplaceOrderGasEstimate(order.id, clientOrderId ,priceToSend, quantityToSend);
 
-      console.log("CANCEL REPLACE: GOT GASEST");
+      //console.log("CANCEL REPLACE: GOT GASEST");
 
-      // this.logger.debug (`${this.instanceName} CancelReplace order gasEstimate: ${gasest} `); // ${tcost}
+      //this.logger.debug (`${this.instanceName} CancelReplace order gasEstimate: ${gasest} `); // ${tcost}
       this.orderCount++;
       this.logger.debug(
         `${this.instanceName} Cancel/Replace OrderNbr: ${this.orderCount} ${
           order.side === 0 ? "BUY" : "SELL"
         } ::: ${quantity.toString()} ${this.base} @ ${price.toString()} ${this.quote}`
       );
-      const options = await this.getOptions(this.contracts["SubNetProvider"], gasest);
+      const options = await this.getOptions(this.contracts["SubNetProvider"], BigNumberEthers.from(1000000));
       const tx = await this.tradePair.cancelReplaceOrder(order.id, clientOrderId, priceToSend, quantityToSend, options);
       const orderLog = await tx.wait();
 
@@ -1343,14 +1347,12 @@ abstract class AbstractBot {
       } else {
         const reason = await this.getRevertReason(error);
         if (reason) {
-          console.log("ERR", error);
           this.logger.warn(
             `${this.instanceName} Order Cancel/Replace error ${order.side === 0 ? "BUY" : "SELL"} ::: ${quantity.toFixed(
               this.baseDisplayDecimals
             )} @ ${price.toFixed(this.quoteDisplayDecimals)} Revert Reason ${reason}`
           );
         } else {
-          console.log("ERR2: ", error);
           this.logger.error(
             `${this.instanceName} Order Cancel/Replace error ${order.side === 0 ? "BUY" : "SELL"} ::: ${quantity.toFixed(
               this.baseDisplayDecimals
