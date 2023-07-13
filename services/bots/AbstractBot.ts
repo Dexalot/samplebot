@@ -63,12 +63,6 @@ abstract class AbstractBot {
   protected signature: any;
   protected axiosConfig: any;
 
-  protected bidSpread: any;
-  protected askSpread: any;
-  protected orderLevels: any;
-  protected orderLevelSpread: any;
-  protected orderLevelQty: any;
-
   constructor(botId: number, pairStr: string, privateKey: string, ratelimit_token?: string) {
     this.logger = getLogger("Bot");
     this.instanceName = botId + ":" + pairStr;
@@ -415,6 +409,7 @@ abstract class AbstractBot {
 
     for (let i = 0; i < newOrders.length; i++){
       const clientOrderId = await this.getClientOrderId(blocknumber, i);
+      newOrders[i].clientOrderId = clientOrderId;
       const priceToSend = utils.parseUnits(
         newOrders[i].price.toFixed(this.quoteDisplayDecimals),
         this.contracts[this.quote].tokenDetails.evmdecimals
@@ -477,6 +472,12 @@ abstract class AbstractBot {
           if (_log.event) {
             if (_log.event === "OrderStatusChanged") {
               if (_log.args.traderaddress === this.account && _log.args.pair === this.tradePairByte32) {
+                let level = 0;
+                for (let i = 0; i < newOrders.length; i++){
+                  if (newOrders[i].clientOrderId == _log.args.clientOrderId){
+                    level = newOrders[i].level;
+                  }
+                }
                 await this.processOrders(
                   _log.args.version,
                   this.account,
@@ -493,7 +494,8 @@ abstract class AbstractBot {
                   _log.args.quantityfilled,
                   _log.args.totalfee,
                   _log.args.code,
-                  _log
+                  _log,
+                  level
                 );
               }
             }
@@ -662,7 +664,8 @@ abstract class AbstractBot {
                     _log.args.quantityfilled,
                     _log.args.totalfee,
                     _log.args.code,
-                    _log
+                    _log,
+                    level
                   );
                 }
               }
@@ -989,7 +992,8 @@ abstract class AbstractBot {
     quantityfilled: any,
     totalfee: any,
     code: any,
-    event: any
+    event: any,
+    level: any
   ) {
     try {
       if (pair === this.tradePairByte32) {
@@ -1013,7 +1017,8 @@ abstract class AbstractBot {
           event.blockNumber,
           tx.gasUsed.toString(),
           tx.effectiveGasPrice ? tx.effectiveGasPrice.toString() : "225",
-          tx.cumulativeGasUsed.toString()
+          tx.cumulativeGasUsed.toString(),
+          level
         );
 
         if (utils.statusMap[order.status] === "NEW" || utils.statusMap[order.status] === "PARTIAL") {
@@ -1164,7 +1169,8 @@ abstract class AbstractBot {
                     _log.args.quantityfilled,
                     _log.args.totalfee,
                     _log.args.code,
-                    _log
+                    _log,
+                    -1
                   );
                 }
               }
@@ -1225,7 +1231,8 @@ abstract class AbstractBot {
                   _log.args.quantityfilled,
                   _log.args.totalfee,
                   _log.args.code,
-                  _log
+                  _log,
+                  -1
                 );
               }
             }
@@ -1326,7 +1333,8 @@ abstract class AbstractBot {
                   _log.args.quantityfilled,
                   _log.args.totalfee,
                   _log.args.code,
-                  _log
+                  _log,
+                  order.level
                 );
               }
             }
@@ -1403,6 +1411,7 @@ abstract class AbstractBot {
     }
     await this.checkOrdersInChain();
     this.logger.info(`${this.instanceName} open orders recovered:`);
+    return true;
   }
 
   // Check the satus of the outstanding orders and remove if filled/canceled
@@ -1857,10 +1866,13 @@ abstract class AbstractBot {
 
   async cleanUpAndExit() {
     if (!this.cleanupCalled) {
+      const timeout = 10; //Min 6 seconds because this.stop calls cancelall and waits for 5 seconds
       this.logger.warn(`${this.instanceName} === Process Exit Called === `);
       this.cleanupCalled = true;
+      await utils.sleep(10000);
+      this.logger.warn(`${this.instanceName} === STOPPING === `);
       await this.stop();
-      const timeout = 10; //Min 6 seconds because this.stop calls cancelall and waits for 5 seconds
+
       setTimeout(() => {
         this.logger.warn(`${this.instanceName} === SHUTTING DOWN === `);
         process.exit(0);
