@@ -1,5 +1,5 @@
-import avax_usdc from "./avax_usdc";
-const Bot:any = {avax_usdc};
+import MarketMakerBot from "./MarketMakerBot";
+const Bot:any = {MarketMakerBot};
 
 module.exports = {
     createBot(type:any, attributes:any) {

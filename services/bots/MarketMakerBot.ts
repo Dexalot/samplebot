@@ -7,10 +7,10 @@ import Order from "../../models/order";
 import { error } from "console";
 import { BrotliDecompress } from "zlib";
 
-class avax_usdc extends AbstractBot {
-  protected marketPrice = new BigNumber(17); //AVAX/USDC
-  protected baseUsd = 13; //AVAX
-  protected quoteUsd = 1; //USDC
+class MarketMakerBot extends AbstractBot {
+  protected marketPrice = new BigNumber(17);
+  protected baseUsd = 13; 
+  protected quoteUsd = 1; 
   protected capitalASideUSD = 300;
   protected counter = 0;
 
@@ -146,6 +146,8 @@ class avax_usdc extends AbstractBot {
           console.log("BID LEVEL ",levels[x][0],": BID PRICE: ", bidPrice.toNumber(),", BID QTY: ",bidQty.toNumber(), "Portfolio Tot: ",this.contracts[this.quote].portfolioTot);
           bidsEnroute += bidQty.toNumber();
           newOrderList.push(new NewOrder(0,bidQty,bidPrice,levels[x][1]));
+        } else {
+          console.log("NOT ENOUGH FUNDS TO PLACE INITIAL BID: ", levels[x][1];)
         }
       } else {
       //--------------- SET ASKS --------------- //
@@ -155,6 +157,8 @@ class avax_usdc extends AbstractBot {
           console.log("ASK LEVEL ",levels[x][1],": ASK PRICE: ", askPrice.toNumber(),", ASK QTY: ",askQty.toNumber(), "Portfolio Tot: ",this.contracts[this.base].portfolioTot);
           asksEnRoute += askQty.toNumber();
           newOrderList.push(new NewOrder(1,askQty,askPrice,levels[x][1]));
+        } else {
+          console.log("NOT ENOUGH FUNDS TO PLACE INITIAL ASK: ", levels[x][1];)
         }
       }
     }
@@ -166,7 +170,6 @@ class avax_usdc extends AbstractBot {
   async replaceBids(bidsSorted: any, startingBidPrice: number){
     console.log("REPLACE BIDS: ",bidsSorted.length);
     let bidsEnRoute = 0;
-    let timer = 0;
     for (let i = 0; i < this.orderLevels; i ++){
       let order = {id:null, status:null, totalamount:new BigNumber(0),quantityfilled:new BigNumber(0)};
       for (let j = 0; j < bidsSorted.length; j++){
@@ -175,31 +178,26 @@ class avax_usdc extends AbstractBot {
           console.log("BID ORDER: ", order);
         }
       }
-      // We need a timer because you cannot replace or make multiple individual orders on the same pair on the same side in one block
-      setTimeout(()=>{
-        timer += 3000;
-        if (order.id && (order.status == 0 || order.status == 2 || order.status == 7)){
-          let bidPrice = new BigNumber(0.99 * startingBidPrice * (1-(i*this.orderLevelSpread/100)));
-          let bidQty = new BigNumber(this.getQty(bidPrice,0,i+1,this.contracts[this.quote].portfolioTot + (bidPrice.toNumber() * (order.totalamount.toNumber() - order.quantityfilled.toNumber())) - (bidsEnRoute * bidPrice.toNumber())));
-          if (bidQty.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
-            bidsEnRoute += (bidQty.toNumber() - (order.totalamount.toNumber() - order.quantityfilled.toNumber()));
-            console.log("REPLACE ORDER:",bidPrice,bidQty);
-            this.cancelReplaceOrder(order,bidPrice,bidQty);
-          } else {
-            console.log("NOT ENOUGH FUNDS TO REPLACE", bidQty.toNumber() * bidPrice.toNumber(), this.contracts[this.quote].portfolioTot, order.totalamount.toNumber(), order.quantityfilled.toNumber(), bidsEnRoute);
-          }
+      if (order.id && (order.status == 0 || order.status == 2 || order.status == 7)){
+        let bidPrice = new BigNumber(0.99 * startingBidPrice * (1-(i*this.orderLevelSpread/100)));
+        let bidQty = new BigNumber(this.getQty(bidPrice,0,i+1,this.contracts[this.quote].portfolioTot + (bidPrice.toNumber() * (order.totalamount.toNumber() - order.quantityfilled.toNumber())) - (bidsEnRoute * bidPrice.toNumber())));
+        if (bidQty.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
+          bidsEnRoute += (bidQty.toNumber() - (order.totalamount.toNumber() - order.quantityfilled.toNumber()));
+          console.log("REPLACE ORDER:",bidPrice,bidQty);
+          this.cancelReplaceOrder(order,bidPrice,bidQty);
         } else {
-          console.log("MAKE FRESH ORDER");
-          this.placeInitialOrders([[0,i+1]]);
+          console.log("NOT ENOUGH FUNDS TO REPLACE", bidQty.toNumber() * bidPrice.toNumber(), this.contracts[this.quote].portfolioTot, order.totalamount.toNumber(), order.quantityfilled.toNumber(), bidsEnRoute);
         }
-      },0);
+      } else {
+        console.log("MAKE FRESH ORDER");
+        this.placeInitialOrders([[0,i+1]]);
+      }
     }
   }
 
   async replaceAsks (asksSorted: any, startingAskPrice: number){
     console.log("REPLACE ASKS: ",asksSorted.length);
     let asksEnRoute = 0;
-    let timer = 0;
 
     for (let i = 0; i < this.orderLevels; i ++){
       let order = {id:null, status:null, totalamount:new BigNumber(0),quantityfilled:new BigNumber(0)};
@@ -209,24 +207,20 @@ class avax_usdc extends AbstractBot {
           console.log("ASK ORDER: ", order);
         }
       }
-      // We need a timer because you cannot replace or make multiple individual orders on the same pair on the same side in one block
-      setTimeout(()=>{
-        timer += 3000;
-        if (order.id && (order.status == 0 || order.status == 2 || order.status == 7)){
-          let askPrice = new BigNumber(1.01 * startingAskPrice * (1-(i*this.orderLevelSpread/100)));
-          let askQty = new BigNumber(this.getQty(askPrice,1,i+1,this.contracts[this.base].portfolioTot + (order.totalamount.toNumber() - order.quantityfilled.toNumber()) - asksEnRoute));
-          if (askQty.toNumber() * askPrice.toNumber() > this.minTradeAmnt){
-            asksEnRoute += (askQty.toNumber() - (order.totalamount.toNumber() - order.quantityfilled.toNumber()));
-            console.log("REPLACE ORDER:",askPrice,askQty);
-            this.cancelReplaceOrder(order,askPrice,askQty);
-          } else {
-            console.log("NOT ENOUGH FUNDS TO REPLACE", askQty.toNumber(), this.contracts[this.base].portfolioTot, order.totalamount.toNumber(), order.quantityfilled.toNumber(), asksEnRoute);
-          }
+      if (order.id && (order.status == 0 || order.status == 2 || order.status == 7)){
+        let askPrice = new BigNumber(1.01 * startingAskPrice * (1-(i*this.orderLevelSpread/100)));
+        let askQty = new BigNumber(this.getQty(askPrice,1,i+1,this.contracts[this.base].portfolioTot + (order.totalamount.toNumber() - order.quantityfilled.toNumber()) - asksEnRoute));
+        if (askQty.toNumber() * askPrice.toNumber() > this.minTradeAmnt){
+          asksEnRoute += (askQty.toNumber() - (order.totalamount.toNumber() - order.quantityfilled.toNumber()));
+          console.log("REPLACE ORDER:",askPrice,askQty);
+          this.cancelReplaceOrder(order,askPrice,askQty);
         } else {
-          console.log("MAKE FRESH ORDER");
-          this.placeInitialOrders([[1,i+1]]);
+          console.log("NOT ENOUGH FUNDS TO REPLACE", askQty.toNumber(), this.contracts[this.base].portfolioTot, order.totalamount.toNumber(), order.quantityfilled.toNumber(), asksEnRoute);
         }
-      },0);
+      } else {
+        console.log("MAKE FRESH ORDER");
+        this.placeInitialOrders([[1,i+1]]);
+      }
     }
   }
 
@@ -260,15 +254,15 @@ class avax_usdc extends AbstractBot {
   async getNewMarketPrice() {
     try {
       let response_base = await axios.get('http://localhost/'+this.base);
-      this.baseUsd = response_base.data; //AVAX
+      this.baseUsd = response_base.data; 
       
       let response_quote = await axios.get('http://localhost/'+this.quote);
-      this.quoteUsd = response_quote.data; //USDC
+      this.quoteUsd = response_quote.data; 
 
-      if (!this.baseUsd){
+      if (!this.baseUsd){ //AVAX for testing
         this.baseUsd = 12;
       }
-      if (!this.quoteUsd){
+      if (!this.quoteUsd){ //USDC for testing
         this.quoteUsd = 1;
       }
 
