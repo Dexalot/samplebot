@@ -11,7 +11,7 @@
     "sampleBot-hh": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=local-hh --ENCYRPT_SECRET=secret --ENCRYPT_SALT=salt",
     "sampleBot-dev": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=development --ENCYRPT_SECRET=secret --ENCRYPT_SALT=salt",
     "sampleBot-fuji": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=fuji --ENCYRPT_SECRET=secret --ENCRYPT_SALT=salt",
-    "avax_usdc-fuji": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=fuji --ENCYRPT_SECRET=secret --ENCRYPT_SALT=salt",
+    "marketMakerBot-fuji": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=fuji --ENCYRPT_SECRET=secret --ENCRYPT_SALT=salt",
     "loadBot": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=multiapp --ENCYRPT_SECRET=secret --ENCRYPT_SALT=salt",
     "loadBot1": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=multiapp@1 --ENCYRPT_SECRET=secret --ENCRYPT_SALT=salt",
     "loadBot2": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=multiapp@2 --ENCYRPT_SECRET=secret --ENCRYPT_SALT=salt",

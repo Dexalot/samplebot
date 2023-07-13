@@ -91,10 +91,8 @@ class MarketMakerBot extends AbstractBot {
     try {
       this.counter ++;
       console.log("000000000000000 COUNTER:",this.counter);
-      
-      const marketPrice = this.getPrice(1).toNumber();
-      const startingBidPrice = marketPrice * (1-this.bidSpread/100);
-      const startingAskPrice = marketPrice * (1+this.askSpread/100);
+      const startingBidPrice = this.marketPrice.toNumber() * (1-this.bidSpread/100);
+      const startingAskPrice = this.marketPrice.toNumber() * (1+this.askSpread/100);
 
 
       let bids: object[] = []; 
@@ -131,9 +129,8 @@ class MarketMakerBot extends AbstractBot {
   // For each subarray passed in, it creates a new order and adds it to newOrderList. At the end it calls addLimitOrderList with the newOrderList
   async placeInitialOrders(levels: number[][]){
 
-    const marketPrice = this.getPrice(1).toNumber();
-    const initialBidPrice = marketPrice * (1-this.bidSpread/100);
-    const initialAskPrice = marketPrice * (1+this.askSpread/100);
+    const initialBidPrice = this.marketPrice.toNumber() * (1-this.bidSpread/100);
+    const initialAskPrice = this.marketPrice.toNumber() * (1+this.askSpread/100);
     let newOrderList : NewOrder[] = [];
     // --------------- SET BIDS --------------- //
     let bidsEnroute = 0;
@@ -147,7 +144,7 @@ class MarketMakerBot extends AbstractBot {
           bidsEnroute += bidQty.toNumber();
           newOrderList.push(new NewOrder(0,bidQty,bidPrice,levels[x][1]));
         } else {
-          console.log("NOT ENOUGH FUNDS TO PLACE INITIAL BID: ", levels[x][1];)
+          console.log("NOT ENOUGH FUNDS TO PLACE INITIAL BID: ", levels[x][1])
         }
       } else {
       //--------------- SET ASKS --------------- //
@@ -158,7 +155,7 @@ class MarketMakerBot extends AbstractBot {
           asksEnRoute += askQty.toNumber();
           newOrderList.push(new NewOrder(1,askQty,askPrice,levels[x][1]));
         } else {
-          console.log("NOT ENOUGH FUNDS TO PLACE INITIAL ASK: ", levels[x][1];)
+          console.log("NOT ENOUGH FUNDS TO PLACE INITIAL ASK: ", levels[x][1])
         }
       }
     }
@@ -179,7 +176,7 @@ class MarketMakerBot extends AbstractBot {
         }
       }
       if (order.id && (order.status == 0 || order.status == 2 || order.status == 7)){
-        let bidPrice = new BigNumber(0.99 * startingBidPrice * (1-(i*this.orderLevelSpread/100)));
+        let bidPrice = new BigNumber(startingBidPrice * (1-(i*this.orderLevelSpread/100)));
         let bidQty = new BigNumber(this.getQty(bidPrice,0,i+1,this.contracts[this.quote].portfolioTot + (bidPrice.toNumber() * (order.totalamount.toNumber() - order.quantityfilled.toNumber())) - (bidsEnRoute * bidPrice.toNumber())));
         if (bidQty.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
           bidsEnRoute += (bidQty.toNumber() - (order.totalamount.toNumber() - order.quantityfilled.toNumber()));
@@ -208,7 +205,7 @@ class MarketMakerBot extends AbstractBot {
         }
       }
       if (order.id && (order.status == 0 || order.status == 2 || order.status == 7)){
-        let askPrice = new BigNumber(1.01 * startingAskPrice * (1-(i*this.orderLevelSpread/100)));
+        let askPrice = new BigNumber(startingAskPrice * (1-(i*this.orderLevelSpread/100)));
         let askQty = new BigNumber(this.getQty(askPrice,1,i+1,this.contracts[this.base].portfolioTot + (order.totalamount.toNumber() - order.quantityfilled.toNumber()) - asksEnRoute));
         if (askQty.toNumber() * askPrice.toNumber() > this.minTradeAmnt){
           asksEnRoute += (askQty.toNumber() - (order.totalamount.toNumber() - order.quantityfilled.toNumber()));
@@ -246,10 +243,6 @@ class MarketMakerBot extends AbstractBot {
     }
   }
 
-  getPrice(side: number): BigNumber {
-    return this.marketPrice;
-  }
-
   // Update the marketPrice from an outside source
   async getNewMarketPrice() {
     try {
@@ -266,15 +259,15 @@ class MarketMakerBot extends AbstractBot {
         this.quoteUsd = 1;
       }
 
-      this.setMarketPrice(this.baseUsd/this.quoteUsd);
+      this.marketPrice = new BigNumber(this.baseUsd/this.quoteUsd);
     } catch (error: any) {
       this.logger.error(`${this.instanceName} Error during getNewMarketPrice`, error);
     }
     return this.marketPrice;
   }
 
-  setMarketPrice(price: number) {
-    this.marketPrice = new BigNumber(price);
+  getPrice(side: number): BigNumber {
+    return this.marketPrice;
   }
 
   async getAlotPrice(): Promise<number> {
@@ -323,4 +316,4 @@ const sortOrders = (arr: any, propertyName: any, order: string = 'ascending') =>
   return sortedArr;
 };
 
-export default avax_usdc;
+export default MarketMakerBot;
