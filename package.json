@@ -8,15 +8,8 @@
     "node": "16.15.1"
   },
   "scripts": {
-    "sampleBot-hh": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=local-hh --ENCYRPT_SECRET=secret --ENCRYPT_SALT=salt",
-    "sampleBot-dev": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=development --ENCYRPT_SECRET=secret --ENCRYPT_SALT=salt",
-    "sampleBot-fuji": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=fuji --ENCYRPT_SECRET=secret --ENCRYPT_SALT=salt",
-    "marketMakerBot-fuji": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=fuji --ENCYRPT_SECRET=secret --ENCRYPT_SALT=salt",
-    "loadBot": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=multiapp --ENCYRPT_SECRET=secret --ENCRYPT_SALT=salt",
-    "loadBot1": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=multiapp@1 --ENCYRPT_SECRET=secret --ENCRYPT_SALT=salt",
-    "loadBot2": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=multiapp@2 --ENCYRPT_SECRET=secret --ENCRYPT_SALT=salt",
-    "loadBot3": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=multiapp@3 --ENCYRPT_SECRET=secret --ENCRYPT_SALT=salt",
-    "prepare": "node prepare.js"
+    "marketMaker-fuji": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=fuji",
+    "marketMaker-prod": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=development"
   },
   "dependencies": {
     "@ethersproject/experimental": "5.7.0",

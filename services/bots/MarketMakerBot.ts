@@ -24,13 +24,14 @@ class MarketMakerBot extends AbstractBot {
     super(botId, pairStr, privateKey);
     // Will try to rebalance the amounts in the Portfolio Contract
     this.portfolioRebalanceAtStart = false;
-    this.bidSpread = getConfig("bidSpread");
-    this.askSpread = getConfig("askSpread");
-    this.orderLevels = getConfig("orderLevels");
-    this.orderLevelSpread = getConfig("orderLevelSpread");
-    this.orderLevelQty = getConfig("orderLevelQty"); 
-    this.refreshOrderTolerance = getConfig("refreshOrderTolerance");
-    this.flatAmount = getConfig("flatAmount");
+    this.config = getConfig(this.tradePairIdentifier)
+    this.bidSpread = this.config.bidSpread;
+    this.askSpread = this.config.askSpread
+    this.orderLevels = this.config.orderLevels
+    this.orderLevelSpread = this.config.orderLevelSpread
+    this.orderLevelQty = this.config.orderLevelQty
+    this.refreshOrderTolerance = this.config.refreshOrderTolerance
+    this.flatAmount = this.config.flatAmount
   }
 
   async saveBalancestoDb(balancesRefreshed: boolean): Promise<void> {
@@ -42,7 +43,7 @@ class MarketMakerBot extends AbstractBot {
     if (initializing) {
       await this.getNewMarketPrice();
 
-      this.interval = 15000; //Min 10 seconds
+      this.interval = 10000; //Min 10 seconds
 
       // PNL  TO KEEP TRACK OF PNL , FEE & TCOST  etc
       //this.PNL = new PNL(getConfig('NODE_ENV_SETTINGS'), this.instanceName, this.base, this.quote, this.config, this.account);
@@ -108,9 +109,10 @@ class MarketMakerBot extends AbstractBot {
         let bids: object[] = []; 
         let asks: object[] = [];
   
-        console.log("UPDATE ORDERS - this.orders:", this.orders);
         this.orders.forEach((e,i)=>{
-          if (e.side === 0){
+          if (!e.level){
+            this.cancelOrder(e); // Sometimes the level gets lost. I have no idea how. So I just delete the order and it will make a new one for that level.
+          } else if (e.side === 0){
             bids.push({side:e.side,id:e.id,price:e.price.toNumber(),level:e.level,status:e.status, totalamount:e.totalamount,quantityfilled:e.quantityfilled});
           } else {
             asks.push({side:e.side,id:e.id,price:e.price.toNumber(),level:e.level,status:e.status, totalamount:e.totalamount,quantityfilled:e.quantityfilled});
@@ -130,6 +132,7 @@ class MarketMakerBot extends AbstractBot {
     } finally {
       //Update orders again after interval
       this.orderUpdater = setTimeout(async ()=>{
+        await this.processOpenOrders();
         await this.getNewMarketPrice();
         this.updateOrders();
       }, this.interval);
@@ -173,14 +176,20 @@ class MarketMakerBot extends AbstractBot {
     }
 
   //   // --------------- EXECUTE ORDERS --------------- //
-    await this.addLimitOrderList(newOrderList);
+    if (newOrderList.length == 0){
+      console.log("ERROR - NewOrderList empty");
+    } else if (newOrderList.length == 1){
+      await this.addOrder(newOrderList[0].side,newOrderList[0].quantity,newOrderList[0].price,1,3,newOrderList[0].level);
+    } else {
+      await this.addLimitOrderList(newOrderList);
+    }
   }
 
   async replaceBids(bidsSorted: any, startingBidPrice: number){
     console.log("REPLACE BIDS: ",bidsSorted.length);
     let bidsEnRoute = 0;
     for (let i = 0; i < this.orderLevels; i ++){
-      let order = {id:null, status:null, totalamount:new BigNumber(0),quantityfilled:new BigNumber(0)};
+      let order = {id:null, status:null, totalamount:new BigNumber(0),quantityfilled:new BigNumber(0), level:0};
       for (let j = 0; j < bidsSorted.length; j++){
         if (bidsSorted[j].level == i+1){
           order = bidsSorted[j];
@@ -191,7 +200,7 @@ class MarketMakerBot extends AbstractBot {
         let bidQty = new BigNumber(this.getQty(bidPrice,0,i+1,this.contracts[this.quote].portfolioTot + (bidPrice.toNumber() * (order.totalamount.toNumber() - order.quantityfilled.toNumber())) - (bidsEnRoute * bidPrice.toNumber())));
         if (bidQty.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
           bidsEnRoute += (bidQty.toNumber() - (order.totalamount.toNumber() - order.quantityfilled.toNumber()));
-          console.log("REPLACE ORDER:",bidPrice,bidQty);
+          console.log("REPLACE ORDER:",bidPrice,bidQty, i+1);
           this.cancelReplaceOrder(order,bidPrice,bidQty);
         } else {
           console.log("NOT ENOUGH FUNDS TO REPLACE", bidQty.toNumber() * bidPrice.toNumber(), this.contracts[this.quote].portfolioTot, order.totalamount.toNumber(), order.quantityfilled.toNumber(), bidsEnRoute);
@@ -208,18 +217,18 @@ class MarketMakerBot extends AbstractBot {
     let asksEnRoute = 0;
 
     for (let i = 0; i < this.orderLevels; i ++){
-      let order = {id:null, status:null, totalamount:new BigNumber(0),quantityfilled:new BigNumber(0)};
+      let order = {id:null, status:null, totalamount:new BigNumber(0),quantityfilled:new BigNumber(0), level:0};
       for (let j = 0; j < asksSorted.length; j++){
         if (asksSorted[j].level == i+1){
           order = asksSorted[j];
         }
       }
       if (order.id && (order.status == 0 || order.status == 2 || order.status == 7)){
-        let askPrice = new BigNumber(startingAskPrice * (1-this.getSpread(i)));
+        let askPrice = new BigNumber(startingAskPrice * (1+this.getSpread(i)));
         let askQty = new BigNumber(this.getQty(askPrice,1,i+1,this.contracts[this.base].portfolioTot + (order.totalamount.toNumber() - order.quantityfilled.toNumber()) - asksEnRoute));
         if (askQty.toNumber() * askPrice.toNumber() > this.minTradeAmnt){
           asksEnRoute += (askQty.toNumber() - (order.totalamount.toNumber() - order.quantityfilled.toNumber()));
-          console.log("REPLACE ORDER:",askPrice,askQty);
+          console.log("REPLACE ORDER:",askPrice,askQty, i+1);
           this.cancelReplaceOrder(order,askPrice,askQty);
         } else {
           console.log("NOT ENOUGH FUNDS TO REPLACE", askQty.toNumber(), this.contracts[this.base].portfolioTot, order.totalamount.toNumber(), order.quantityfilled.toNumber(), asksEnRoute);
