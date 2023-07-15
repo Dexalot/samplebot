@@ -1432,7 +1432,7 @@ abstract class AbstractBot {
     const orders: any = [];
     const time = new Date().getSeconds();
     for (const order of this.orders.values()) {
-      if (time - order.timestamp > 30){
+      if (time - order.timestamp > this.interval){ // If the order hasn't been updated within the interval time, check the chain to make sure we're not missing any information about it.
         orders.push(order);
         promises.push(this.tradePair.getOrder(order.id));
       }
