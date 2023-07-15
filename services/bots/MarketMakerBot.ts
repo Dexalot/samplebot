@@ -102,8 +102,20 @@ class MarketMakerBot extends AbstractBot {
       if (this.marketPrice.toNumber()<this.lastMarketPrice.toNumber()*(1-parseFloat(this.refreshOrderTolerance)) || this.marketPrice.toNumber()>this.lastMarketPrice.toNumber()*(1+parseFloat(this.refreshOrderTolerance))){
         this.counter ++;
         console.log("000000000000000 COUNTER:",this.counter);
-        const startingBidPrice = this.marketPrice.toNumber() * (1-this.bidSpread/100);
-        const startingAskPrice = this.marketPrice.toNumber() * (1+this.askSpread/100);
+        let startingBidPrice = this.marketPrice.toNumber() * (1-this.bidSpread/100);
+        let startingAskPrice = this.marketPrice.toNumber() * (1+this.askSpread/100);
+        const myBestAsk = this.orderbook.bestask().price.toNumber();
+        const myBestBid = this.orderbook.bestbid().price.toNumber();
+
+        // Don't want overlapping bids and asks. It would return errors since these are post only orders.
+        if (myBestAsk && startingBidPrice > myBestAsk){
+          console.log("BEST ASK: ",myBestAsk, "STARTING BID PRICE: ", startingBidPrice)
+          startingBidPrice = myBestAsk - (myBestAsk * this.orderLevelSpread/100);
+        }
+        if (myBestBid && startingAskPrice < myBestBid){
+          console.log("BEST BID: ",myBestBid, "STARTING ASK PRICE: ", startingAskPrice)
+          startingAskPrice = myBestBid + (myBestBid * this.orderLevelSpread/100);
+        }
   
   
         let bids: object[] = []; 
@@ -301,7 +313,7 @@ class MarketMakerBot extends AbstractBot {
       this.baseUsd = prices[this.base+'-USD']; 
       this.quoteUsd = prices[this.quote+'-USD']; 
 
-      this.marketPrice = new BigNumber(this.baseUsd/this.quoteUsd);
+      this.marketPrice = new BigNumber(this.baseUsd/this.quoteUsd).dp(this.quoteDisplayDecimals);
       console.log("new market Price:",this.marketPrice.toNumber());
     } catch (error: any) {
       this.logger.error(`${this.instanceName} Error during getNewMarketPrice`, error);
