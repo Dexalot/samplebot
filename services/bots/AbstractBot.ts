@@ -1414,7 +1414,8 @@ abstract class AbstractBot {
         totalfee: new BigNumber(order.totalfee),
         gasUsed: 0,
         gasPrice: 0,
-        cumulativeGasUsed: 0
+        cumulativeGasUsed: 0,
+        timestamp: new Date().getSeconds(),
       });
 
       this.addOrderToMap(orderfromDb);
@@ -1447,7 +1448,7 @@ abstract class AbstractBot {
         // );
       }
     } catch (error) {
-      throw new Error("Could not fetch order status");
+      console.log("ERROR CHECKING ORDERS ON CHAIN:", error);
     }
   }
 
