@@ -333,7 +333,7 @@ abstract class AbstractBot {
     if (this.orderUpdater !== undefined) {
       clearTimeout(this.orderUpdater);
     }
-    this.cancelOrderList()
+    this.cancelOrderList([], 100)
       .then(() => {
         this.logger.warn(`${this.instanceName} Waiting 5 seconds before removing order listeners"...`);
         setTimeout(async () => {
@@ -587,18 +587,18 @@ abstract class AbstractBot {
 
         this.orderCount++;
 
-        const gasest = await this.getAddOrderGasEstimate(clientOrderId, price, quantity, side, ordtype, ordType2);
+        //const gasest = await this.getAddOrderGasEstimate(clientOrderId, price, quantity, side, ordtype, ordType2);
         // const tcost = await this.getTCost(gasest);
         // this.logger.debug (`${this.instanceName} New order gasEstimate: ${gasest} , tcost  ${tcost.toString()} `);
-        this.logger.debug(
-          `${this.instanceName} SENDING ORDER OrderNbr: ${this.orderCount} ${side === 0 ? "BUY" : "SELL"}::: ${quantity.toFixed(
-            this.baseDisplayDecimals
-          )} ${this.base} @ ${ordtype === 0 ? "MARKET" : price.toFixed(this.quoteDisplayDecimals)} ${this.quote}`
-        );
+        // this.logger.debug(
+        //   `${this.instanceName} SENDING ORDER OrderNbr: ${this.orderCount} ${side === 0 ? "BUY" : "SELL"}::: ${quantity.toFixed(
+        //     this.baseDisplayDecimals
+        //   )} ${this.base} @ ${ordtype === 0 ? "MARKET" : price.toFixed(this.quoteDisplayDecimals)} ${this.quote}`
+        // );
         // this.logger.info (`${utils.parseUnits(price.toFixed(this.quoteDisplayDecimals), this.contracts[this.quote].tokenDetails.evmdecimals)}`);
         // this.logger.info (`${utils.parseUnits(quantity.toFixed(this.baseDisplayDecimals), this.contracts[this.base].tokenDetails.evmdecimals)}`);
 
-        const options = await this.getOptions(this.contracts["SubNetProvider"], gasest);
+        const options = await this.getOptions(this.contracts["SubNetProvider"], BigNumberEthers.from(1000000));
 
         const priceToSend = utils.parseUnits(price.toFixed(this.quoteDisplayDecimals), this.contracts[this.quote].tokenDetails.evmdecimals);
         const quantityToSend = utils.parseUnits(
@@ -1138,7 +1138,9 @@ abstract class AbstractBot {
       if (orderIds.length === 0) {
         let i = 0;
         for (const order of this.orders.values()) {
-          orderIds.push(order.id);
+          if (order.id){
+            orderIds.push(order.id);
+          }
           i++;
           if (i >= nbrofOrderstoCancel) {
             // More than xx orders in a cancel will run out of gas
@@ -1397,29 +1399,33 @@ abstract class AbstractBot {
   async processOpenOrders() {
     this.logger.info(`${this.instanceName} Recovering open orders:`);
     const orders = await this.getOpenOrders();
-    for (const order of orders) {
-      const orderfromDb = new Order({
-        id: order.id,
-        clientOrderId: order.clientordid,
-        traderaddress: order.traderaddress,
-        quantity: new BigNumber(order.quantity),
-        pair: order.pair,
-        price: new BigNumber(order.price),
-        side: parseInt(order.side),
-        type: parseInt(order.type),
-        type2: parseInt(order.type2),
-        status: parseInt(order.status),
-        quantityfilled: new BigNumber(order.quantityfilled),
-        totalamount: new BigNumber(order.totalamount),
-        totalfee: new BigNumber(order.totalfee),
-        gasUsed: 0,
-        gasPrice: 0,
-        cumulativeGasUsed: 0,
-        timestamp: new Date().getSeconds(),
-      });
-
-      this.addOrderToMap(orderfromDb);
+    if (orders){
+      for (const order of orders) {
+        const orderfromDb = new Order({
+          id: order.id,
+          clientOrderId: order.clientordid,
+          traderaddress: order.traderaddress,
+          quantity: new BigNumber(order.quantity),
+          pair: order.pair,
+          price: new BigNumber(order.price),
+          side: parseInt(order.side),
+          type: parseInt(order.type),
+          type2: parseInt(order.type2),
+          status: parseInt(order.status),
+          quantityfilled: new BigNumber(order.quantityfilled),
+          totalamount: new BigNumber(order.totalamount),
+          totalfee: new BigNumber(order.totalfee),
+          gasUsed: 0,
+          gasPrice: 0,
+          cumulativeGasUsed: 0,
+          level: -1,
+          timestamp: new Date().getSeconds()
+        });
+  
+        this.addOrderToMap(orderfromDb);
+      }
     }
+
     await this.checkOrdersInChain();
     this.logger.info(`${this.instanceName} open orders recovered:`);
     return true;

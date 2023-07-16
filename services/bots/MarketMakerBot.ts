@@ -44,7 +44,7 @@ class MarketMakerBot extends AbstractBot {
     if (initializing) {
       await this.getNewMarketPrice();
 
-      this.interval = 10000; //Min 10 seconds
+      this.interval = 150000; //Min 10 seconds
 
       // PNL  TO KEEP TRACK OF PNL , FEE & TCOST  etc
       //this.PNL = new PNL(getConfig('NODE_ENV_SETTINGS'), this.instanceName, this.base, this.quote, this.config, this.account);
@@ -82,7 +82,7 @@ class MarketMakerBot extends AbstractBot {
         this.orderUpdater = setTimeout(()=>{
           this.lastMarketPrice = this.marketPrice;
           this.updateOrders();
-        }, this.interval/2);
+        }, this.interval);
       } else {
         console.log("MISSING PRICE DATA - baseUsd:",this.baseUsd, " quoteUsd: ",this.quoteUsd, "Wait 10 seconds then try again");
         await utils.sleep(10000);
@@ -106,43 +106,65 @@ class MarketMakerBot extends AbstractBot {
         console.log("000000000000000 COUNTER:",this.counter);
         let startingBidPrice = this.marketPrice.toNumber() * (1-this.bidSpread);
         let startingAskPrice = this.marketPrice.toNumber() * (1+this.askSpread);
-        const myBestAsk = this.orderbook.bestask().price.toNumber();
-        const myBestBid = this.orderbook.bestbid().price.toNumber();
+        const myBestAsk = this.orderbook.bestask() ? this.orderbook.bestask().price.toNumber() : undefined;
+        const myBestBid = this.orderbook.bestbid() ? this.orderbook.bestbid().price.toNumber() : undefined;
 
-        let bids: object[] = []; 
-        let asks: object[] = [];
+        let bids: any[] = []; 
+        let asks: any[] = [];
+        let duplicates: any[] = [];
 
         this.orders.forEach((e,i)=>{
-          if (e.side == 0){
-            bids.push({side:e.side,id:e.id,price:e.price.toNumber(),level:e.level,status:e.status, totalamount:e.totalamount,quantityfilled:e.quantityfilled});
-          } else if (e.side == 1) {
-            asks.push({side:e.side,id:e.id,price:e.price.toNumber(),level:e.level,status:e.status, totalamount:e.totalamount,quantityfilled:e.quantityfilled});
+          if (e.side === 0){
+            let skip = false;
+            for (let i = 0;i<bids.length; i++){
+              if (bids[i].level === e.level){
+                duplicates.push(e.id);
+                duplicates.push(bids[i].id);
+                skip = true;
+              }
+            }
+            if (!skip){
+              bids.push({side:e.side,id:e.id,price:e.price.toNumber(),level:e.level,status:e.status, totalamount:e.totalamount,quantityfilled:e.quantityfilled});
+            }
+          } else if (e.side === 1) {
+            let skip = false;
+            for (let i = 0;i<asks.length; i++){
+              if (asks[i].level === e.level){
+                duplicates.push(e.id);
+                duplicates.push(asks[i].id);
+                skip = true;
+              } 
+            }
+            if (!skip){
+              asks.push({side:e.side,id:e.id,price:e.price.toNumber(),level:e.level,status:e.status, totalamount:e.totalamount,quantityfilled:e.quantityfilled});
+            }
           } else {
-            this.cancelOrder(e); // Sometimes the level gets lost. I have no idea how. So I just delete the order and it will make a new one for that level.
+            duplicates.push(e);
           }
         });
+        if (duplicates.length > 0){
+          this.cancelOrderList(duplicates);
+        }
       
         let bidsSorted = sortOrders(bids, "price", "descending");
         let asksSorted = sortOrders(asks, "price", "ascending");
+        console.log(bidsSorted);
+        console.log(asksSorted);
 
           // If there will be overlapping orders, wait for the orders of the side in which the price moved to be replaced first, then follow with the others.
           if (myBestAsk && startingBidPrice > myBestAsk){
             console.log("BEST ASK: ",myBestAsk, "STARTING BID PRICE: ", startingBidPrice)
-            //startingBidPrice = myBestAsk - (myBestAsk * this.orderLevelSpread);
+            startingBidPrice = myBestAsk - (myBestAsk * this.orderLevelSpread);
 
               await this.replaceAsks(asksSorted, startingAskPrice);
-              setTimeout (async()=>{
-                await this.replaceBids(bidsSorted, startingBidPrice);
-              }, 4000)
+              await this.replaceBids(bidsSorted, startingBidPrice);
 
           } else if (myBestBid && startingAskPrice < myBestBid){
             console.log("BEST BID: ",myBestBid, "STARTING ASK PRICE: ", startingAskPrice)
-            //startingAskPrice = myBestBid + (myBestBid * this.orderLevelSpread);
+            startingAskPrice = myBestBid + (myBestBid * this.orderLevelSpread);
 
               await this.replaceBids(bidsSorted, startingBidPrice);
-              setTimeout (async()=>{
-                await this.replaceAsks(asksSorted, startingAskPrice);
-              }, 4000)
+              await this.replaceAsks(asksSorted, startingAskPrice);
 
           } else {
             await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
@@ -156,7 +178,7 @@ class MarketMakerBot extends AbstractBot {
       //Update orders again after interval
       this.orderUpdater = setTimeout(async ()=>{
         if (this.status){
-          await Promise.all([this.getBalances(),this.processOpenOrders(),this.getNewMarketPrice()]);
+          await Promise.all([this.getBalances(),this.processOpenOrders(),this.getNewMarketPrice(),this.correctNonce(this.contracts["SubNetProvider"])]);
           this.timer = 2000;
           this.updateOrders();
         }
@@ -180,7 +202,7 @@ class MarketMakerBot extends AbstractBot {
         let bidPrice = new BigNumber(initialBidPrice * (1-this.getSpread(levels[x][1]-1)));
         let bidQty = new BigNumber(this.getQty(bidPrice,0,levels[x][1],this.contracts[this.quote].portfolioTot - (bidsEnroute * bidPrice.toNumber())));
         if (bidQty.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
-          console.log("BID LEVEL ",levels[x][0],": BID PRICE: ", bidPrice.toNumber(),", BID QTY: ",bidQty.toNumber(), "Portfolio Tot: ",this.contracts[this.quote].portfolioTot);
+          console.log("BID LEVEL ",levels[x][1],": BID PRICE: ", bidPrice.toNumber(),", BID QTY: ",bidQty.toNumber(), "Portfolio Tot: ",this.contracts[this.quote].portfolioTot);
           bidsEnroute += bidQty.toNumber();
           newOrderList.push(new NewOrder(0,bidQty,bidPrice,levels[x][1]));
         } else {
@@ -204,9 +226,13 @@ class MarketMakerBot extends AbstractBot {
     if (newOrderList.length == 0){
       console.log("ERROR - NewOrderList empty");
     } else if (newOrderList.length == 1){
-      await this.addOrder(newOrderList[0].side,newOrderList[0].quantity,newOrderList[0].price,1,3,newOrderList[0].level);
+      if (this.status){
+        await this.addOrder(newOrderList[0].side,newOrderList[0].quantity,newOrderList[0].price,1,3,newOrderList[0].level);
+      }
     } else {
-      await this.addLimitOrderList(newOrderList);
+      if (this.status){
+        await this.addLimitOrderList(newOrderList);
+      }
     }
   }
 
@@ -218,12 +244,7 @@ class MarketMakerBot extends AbstractBot {
       let order = {id:null, status:null, totalamount:new BigNumber(0),quantityfilled:new BigNumber(0), level:0};
       for (let j = 0; j < bidsSorted.length; j++){
         if (bidsSorted[j].level == i+1){
-          if (order.id){
-            this.cancelOrderList([order.id,bidsSorted[j].id])
-            skip = true;
-          } else {
-            order = bidsSorted[j];
-          }
+          order = bidsSorted[j];
         }
       }
       if (order.id && (order.status == 0 || order.status == 2 || order.status == 7)){
@@ -237,12 +258,8 @@ class MarketMakerBot extends AbstractBot {
           console.log("NOT ENOUGH FUNDS TO REPLACE", bidQty.toNumber() * bidPrice.toNumber(), this.contracts[this.quote].portfolioTot, order.totalamount.toNumber(), order.quantityfilled.toNumber(), bidsEnRoute);
         }
       } else {
-        if (!skip){
-          console.log("MAKE FRESH ORDER:", order.id,order.status);
-          this.placeInitialOrders([[0,i+1]]);
-        } else {
-          console.log("SKIP BID, DELETING DUPLICATES");
-        }
+        console.log("MAKE FRESH ORDER:", order.id,order.status);
+        this.placeInitialOrders([[0,i+1]]);
       }
     }
   }
@@ -256,12 +273,7 @@ class MarketMakerBot extends AbstractBot {
       let order = {id:null, status:null, totalamount:new BigNumber(0),quantityfilled:new BigNumber(0), level:0};
       for (let j = 0; j < asksSorted.length; j++){
         if (asksSorted[j].level == i+1){
-          if (order.id){
-            this.cancelOrderList([order.id,asksSorted[j].id])
-            skip = true;
-          } else {
-            order = asksSorted[j];
-          }
+          order = asksSorted[j];
         }
       }
       if (order.id && (order.status == 0 || order.status == 2 || order.status == 7)){
@@ -275,12 +287,8 @@ class MarketMakerBot extends AbstractBot {
           console.log("NOT ENOUGH FUNDS TO REPLACE", askQty.toNumber(), this.contracts[this.base].portfolioTot, order.totalamount.toNumber(), order.quantityfilled.toNumber(), asksEnRoute);
         }
       } else {
-        if (!skip){
-          console.log("MAKE FRESH ORDER");
-          this.placeInitialOrders([[1,i+1]]);
-        } else {
-          console.log("SKIP ASK, DELETING DUPLICATES");
-        }
+        console.log("MAKE FRESH ORDER");
+        this.placeInitialOrders([[1,i+1]]);
       }
     }
   }

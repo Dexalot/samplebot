@@ -4,9 +4,6 @@
   "license": "MIT",
   "private": true,
   "author": "Cengiz Dincoglu",
-  "engines": {
-    "node": "16.15.1"
-  },
   "scripts": {
     "marketMaker-fuji": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=fuji",
     "marketMaker-prod": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=development"

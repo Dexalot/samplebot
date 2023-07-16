@@ -37,4 +37,5 @@ process.on("uncaughtException", (error) => {
 process.on("unhandledRejection", (error, promise) => {
   console.log(`BotManager We forgot to handle a promise rejection here:`, promise);
   console.log(`BotManager The error was:`, error);
+  bot.cleanUpAndExit();
 });
