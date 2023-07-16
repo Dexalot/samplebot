@@ -198,10 +198,17 @@ abstract class AbstractBot {
         await this.getTokenDetails();
 
         this.contracts["MainnetProvider"] = { provider: this.getProvider(this.getEnvironment("mainnet").chain_instance), nonce: 0 };
-        this.contracts["SubNetProvider"] = {
-          provider: this.getProvider(this.getEnvironment("subnet").chain_instance, this.ratelimit_token),
-          nonce: 0
-        };
+        if (getConfig("NODE_ENV_SETTINGS") == "production"){
+          this.contracts["SubNetProvider"] = {
+            provider: this.getProvider(getConfig("rpc_url"), this.ratelimit_token),
+            nonce: 0
+          };
+        } else {
+          this.contracts["SubNetProvider"] = {
+            provider: this.getProvider(this.getEnvironment("subnet").chain_instance, this.ratelimit_token),
+            nonce: 0
+          };
+        }
         this.contracts["MainnetWallet"] = new NonceManager(new ethers.Wallet(this.privateKey, this.contracts["MainnetProvider"].provider));
 
         const wal = new ethers.Wallet(this.privateKey, this.contracts["SubNetProvider"].provider);

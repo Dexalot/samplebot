@@ -114,7 +114,7 @@ class MarketMakerBot extends AbstractBot {
         let duplicates: any[] = [];
 
         this.orders.forEach((e,i)=>{
-          if (e.side === 0 && typeof e.level != undefined){
+          if (e.side === 0 && e.level != undefined && e.level != -1){
             let skip = false;
             for (let i = 0;i<bids.length; i++){
               if (bids[i].level === e.level){
@@ -126,7 +126,7 @@ class MarketMakerBot extends AbstractBot {
             if (!skip){
               bids.push({side:e.side,id:e.id,price:e.price.toNumber(),level:e.level,status:e.status, totalamount:e.totalamount,quantityfilled:e.quantityfilled});
             }
-          } else if (e.side === 1 && typeof e.level != undefined) {
+          } else if (e.side === 1 && e.level != undefined && e.level != -1) {
             let skip = false;
             for (let i = 0;i<asks.length; i++){
               if (asks[i].level === e.level){
