@@ -6,7 +6,7 @@
   "author": "Cengiz Dincoglu",
   "scripts": {
     "marketMaker-fuji": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=fuji",
-    "marketMaker-prod": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=development"
+    "marketMaker-prod": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=production"
   },
   "dependencies": {
     "@ethersproject/experimental": "5.7.0",
