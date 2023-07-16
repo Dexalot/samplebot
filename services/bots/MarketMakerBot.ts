@@ -114,7 +114,7 @@ class MarketMakerBot extends AbstractBot {
         let duplicates: any[] = [];
 
         this.orders.forEach((e,i)=>{
-          if (e.side === 0){
+          if (e.side === 0 && typeof e.level != undefined){
             let skip = false;
             for (let i = 0;i<bids.length; i++){
               if (bids[i].level === e.level){
@@ -126,7 +126,7 @@ class MarketMakerBot extends AbstractBot {
             if (!skip){
               bids.push({side:e.side,id:e.id,price:e.price.toNumber(),level:e.level,status:e.status, totalamount:e.totalamount,quantityfilled:e.quantityfilled});
             }
-          } else if (e.side === 1) {
+          } else if (e.side === 1 && typeof e.level != undefined) {
             let skip = false;
             for (let i = 0;i<asks.length; i++){
               if (asks[i].level === e.level){
@@ -139,7 +139,7 @@ class MarketMakerBot extends AbstractBot {
               asks.push({side:e.side,id:e.id,price:e.price.toNumber(),level:e.level,status:e.status, totalamount:e.totalamount,quantityfilled:e.quantityfilled});
             }
           } else {
-            duplicates.push(e);
+            duplicates.push(e.id);
           }
         });
         if (duplicates.length > 0){
@@ -148,8 +148,6 @@ class MarketMakerBot extends AbstractBot {
       
         let bidsSorted = sortOrders(bids, "price", "descending");
         let asksSorted = sortOrders(asks, "price", "ascending");
-        console.log(bidsSorted);
-        console.log(asksSorted);
 
           // If there will be overlapping orders, wait for the orders of the side in which the price moved to be replaced first, then follow with the others.
           if (myBestAsk && startingBidPrice > myBestAsk){

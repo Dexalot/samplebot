@@ -445,7 +445,7 @@ abstract class AbstractBot {
         0,
         0,
         newOrders[i].level,
-        new Date().getSeconds()
+        Date.now()
       );
 
       this.addOrderToMap(order);
@@ -625,7 +625,7 @@ abstract class AbstractBot {
           0,
           0,
           level,
-          new Date().getSeconds()
+          Date.now()
         );
 
         this.addOrderToMap(order);
@@ -977,7 +977,7 @@ abstract class AbstractBot {
       gasPrice: utils.formatUnits(gasPrice, 9),
       cumulativeGasUsed,
       level,
-      timestamp: new Date().getSeconds()
+      timestamp: Date.now()
     });
   }
 
@@ -1028,7 +1028,7 @@ abstract class AbstractBot {
           tx.effectiveGasPrice ? tx.effectiveGasPrice.toString() : "225",
           tx.cumulativeGasUsed.toString(),
           level,
-          new Date().getSeconds()
+          Date.now()
         );
 
         if (utils.statusMap[order.status] === "NEW" || utils.statusMap[order.status] === "PARTIAL") {
@@ -1417,9 +1417,7 @@ abstract class AbstractBot {
           totalfee: new BigNumber(order.totalfee),
           gasUsed: 0,
           gasPrice: 0,
-          cumulativeGasUsed: 0,
-          level: -1,
-          timestamp: new Date().getSeconds()
+          cumulativeGasUsed: 0
         });
   
         this.addOrderToMap(orderfromDb);
@@ -1436,9 +1434,9 @@ abstract class AbstractBot {
   async checkOrdersInChain() {
     const promises: any = [];
     const orders: any = [];
-    const time = new Date().getSeconds();
+    const time = Date.now()
     for (const order of this.orders.values()) {
-      if (time - order.timestamp > this.interval){ // If the order hasn't been updated within the interval time, check the chain to make sure we're not missing any information about it.
+      if ((time - order.timestamp)/1000 > this.interval/2 || !order.timestamp){ // If the order hasn't been updated within the interval time, check the chain to make sure we're not missing any information about it.
         orders.push(order);
         promises.push(this.tradePair.getOrder(order.id));
       }
@@ -1479,8 +1477,8 @@ abstract class AbstractBot {
         "0",
         "0",
         "0",
-        0,
-        new Date().getSeconds()
+        orderinMemory.level,
+        orderinMemory.timestamp
       ); //tx, blocknbr , gasUsed, gasPrice, cumulativeGasUsed) ;
 
       const ordstatus = orderInChain.status;
