@@ -297,14 +297,14 @@ class MarketMakerBot extends AbstractBot {
   getQty(price: BigNumber, side: number, level: number, availableFunds: number): number {
     if (side === 0){
       console.log("AVAILABLE FUNDS IN QUOTE BID: ",availableFunds, "AMOUNT: ",this.getLevelQty(level))
-      if (this.getLevelQty(level) < availableFunds){
+      if (this.getLevelQty(level) < availableFunds * .975){
         return this.getLevelQty(level);
       } else if (availableFunds > this.minTradeAmnt * 1.025){
         return availableFunds*.975;
       } else { return 0;}
     } else if (side === 1) {
       console.log("AVAILABLE FUNDS ASK: ",availableFunds, "AMOUNT: ",this.getLevelQty(level))
-      if (this.getLevelQty(level) < availableFunds){
+      if (this.getLevelQty(level) < availableFunds * .975){
           return this.getLevelQty(level);
       } else if (availableFunds > this.minTradeAmnt * 1.025){
         return availableFunds * .975;
