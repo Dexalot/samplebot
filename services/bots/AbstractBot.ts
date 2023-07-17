@@ -8,6 +8,7 @@ import { BigNumber } from "bignumber.js";
 import { BigNumber as BigNumberEthers } from "ethers";
 import axios from "axios";
 import fs from "fs";
+import path from "path";
 import { getLogger } from "../logger";
 import OrderBook from "./orderbook";
 import NewOrder from "./classes";
@@ -851,10 +852,11 @@ abstract class AbstractBot {
   }
 
   async correctNonce(provider: any) {
+    let filePath = path.join(__dirname, './nonce.json');
     try {
       const expectedNonce = await provider.provider.getTransactionCount(this.account);
       provider.nonce = expectedNonce;
-      fs.writeFile('./services/bots/nonce.json', JSON.stringify({nonce:provider.nonce}), (err) => {
+      fs.writeFile(filePath, JSON.stringify({nonce:provider.nonce}), (err) => {
         if (err) throw err;
       });
     } catch (error) {
@@ -863,11 +865,12 @@ abstract class AbstractBot {
   }
 
   async getLatestNonce (provider: any) {
-    return fs.readFile('./services/bots/nonce.json', (err, data) => {
+    let filePath = path.join(__dirname, './nonce.json');
+    return fs.readFile(filePath, (err, data) => {
       if (err) throw err;
       provider.nonce = JSON.parse(data.toString()).nonce;
       console.log("NONCE:", provider.nonce);
-      return fs.writeFile('./services/bots/nonce.json', JSON.stringify({nonce:provider.nonce + 1}), (err) => {
+      return fs.writeFile(filePath, JSON.stringify({nonce:provider.nonce + 1}), (err) => {
         if (err) throw err;
         return true;
       });
