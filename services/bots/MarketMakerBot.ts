@@ -205,9 +205,9 @@ class MarketMakerBot extends AbstractBot {
     for (let x = 0; x < levels.length; x++){
       if (levels[x][0] == 0){
         let bidPrice = new BigNumber(initialBidPrice * (1-this.getSpread(levels[x][1]-1)));
-        let bidQty = new BigNumber(this.getQty(bidPrice,0,levels[x][1],this.contracts[this.quote].portfolioTot - (bidsEnroute * bidPrice.toNumber())));
+        let bidQty = new BigNumber(this.getQty(bidPrice,0,levels[x][1],this.contracts[this.quote].portfolioAvail - (bidsEnroute * bidPrice.toNumber())));
         if (bidQty.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
-          console.log("BID LEVEL ",levels[x][1],": BID PRICE: ", bidPrice.toNumber(),", BID QTY: ",bidQty.toNumber(), "Portfolio Tot: ",this.contracts[this.quote].portfolioTot);
+          console.log("BID LEVEL ",levels[x][1],": BID PRICE: ", bidPrice.toNumber(),", BID QTY: ",bidQty.toNumber(), "Portfolio Tot: ",this.contracts[this.quote].portfolioAvail);
           bidsEnroute += bidQty.toNumber();
           newOrderList.push(new NewOrder(0,bidQty,bidPrice,levels[x][1]));
         } else {
@@ -216,9 +216,9 @@ class MarketMakerBot extends AbstractBot {
       } else {
       //--------------- SET ASKS --------------- //
         let askPrice = new BigNumber(initialAskPrice * (1+this.getSpread(levels[x][1]-1)));
-        let askQty = new BigNumber(this.getQty(askPrice,1,levels[x][1],this.contracts[this.base].portfolioTot - asksEnRoute));
+        let askQty = new BigNumber(this.getQty(askPrice,1,levels[x][1],this.contracts[this.base].portfolioAvail - asksEnRoute));
         if (askQty.toNumber() * askPrice.toNumber() > this.minTradeAmnt){
-          console.log("ASK LEVEL ",levels[x][1],": ASK PRICE: ", askPrice.toNumber(),", ASK QTY: ",askQty.toNumber(), "Portfolio Tot: ",this.contracts[this.base].portfolioTot);
+          console.log("ASK LEVEL ",levels[x][1],": ASK PRICE: ", askPrice.toNumber(),", ASK QTY: ",askQty.toNumber(), "Portfolio Tot: ",this.contracts[this.base].portfolioAvail);
           asksEnRoute += askQty.toNumber();
           newOrderList.push(new NewOrder(1,askQty,askPrice,levels[x][1]));
         } else {
@@ -254,13 +254,13 @@ class MarketMakerBot extends AbstractBot {
       }
       if (order.id && (order.status == 0 || order.status == 2 || order.status == 7)){
         let bidPrice = new BigNumber(startingBidPrice * (1-this.getSpread(i)));
-        let bidQty = new BigNumber(this.getQty(bidPrice,0,i+1,this.contracts[this.quote].portfolioTot + (bidPrice.toNumber() * (order.totalamount.toNumber() - order.quantityfilled.toNumber())) - (bidsEnRoute * bidPrice.toNumber())));
+        let bidQty = new BigNumber(this.getQty(bidPrice,0,i+1,this.contracts[this.quote].portfolioAvail + (bidPrice.toNumber() * (order.totalamount.toNumber() - order.quantityfilled.toNumber())) - (bidsEnRoute * bidPrice.toNumber())));
         if (bidQty.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
           bidsEnRoute += (bidQty.toNumber() - (order.totalamount.toNumber() - order.quantityfilled.toNumber()));
           console.log("REPLACE ORDER:",bidPrice,bidQty, i+1);
           this.cancelReplaceOrder(order,bidPrice,bidQty);
         } else {
-          console.log("NOT ENOUGH FUNDS TO REPLACE", bidQty.toNumber() * bidPrice.toNumber(), this.contracts[this.quote].portfolioTot, order.totalamount.toNumber(), order.quantityfilled.toNumber(), bidsEnRoute);
+          console.log("NOT ENOUGH FUNDS TO REPLACE", bidQty.toNumber() * bidPrice.toNumber(), this.contracts[this.quote].portfolioAvail, order.totalamount.toNumber(), order.quantityfilled.toNumber(), bidsEnRoute);
         }
       } else {
         console.log("MAKE FRESH ORDER:", order.id,order.status);
@@ -283,13 +283,13 @@ class MarketMakerBot extends AbstractBot {
       }
       if (order.id && (order.status == 0 || order.status == 2 || order.status == 7)){
         let askPrice = new BigNumber(startingAskPrice * (1+this.getSpread(i)));
-        let askQty = new BigNumber(this.getQty(askPrice,1,i+1,this.contracts[this.base].portfolioTot + (order.totalamount.toNumber() - order.quantityfilled.toNumber()) - asksEnRoute));
+        let askQty = new BigNumber(this.getQty(askPrice,1,i+1,this.contracts[this.base].portfolioAvail + (order.totalamount.toNumber() - order.quantityfilled.toNumber()) - asksEnRoute));
         if (askQty.toNumber() * askPrice.toNumber() > this.minTradeAmnt){
           asksEnRoute += (askQty.toNumber() - (order.totalamount.toNumber() - order.quantityfilled.toNumber()));
           console.log("REPLACE ORDER:",askPrice,askQty, i+1);
           this.cancelReplaceOrder(order,askPrice,askQty);
         } else {
-          console.log("NOT ENOUGH FUNDS TO REPLACE", askQty.toNumber(), this.contracts[this.base].portfolioTot, order.totalamount.toNumber(), order.quantityfilled.toNumber(), asksEnRoute);
+          console.log("NOT ENOUGH FUNDS TO REPLACE", askQty.toNumber(), this.contracts[this.base].portfolioAvail, order.totalamount.toNumber(), order.quantityfilled.toNumber(), asksEnRoute);
         }
       } else {
         console.log("MAKE FRESH ORDER");
