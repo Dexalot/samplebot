@@ -62,6 +62,11 @@ abstract class AbstractBot {
   protected tokenDetails: any;
   protected signature: any;
   protected axiosConfig: any;
+  protected orderBooks: any;
+  protected orderBookID: any;
+  protected orderBookID1: any;
+  protected currentBestBid: any;
+  protected currentBestAsk: any;
 
   constructor(botId: number, pairStr: string, privateKey: string, ratelimit_token?: string) {
     this.logger = getLogger("Bot");
@@ -110,6 +115,7 @@ abstract class AbstractBot {
   async getDeployments() {
     await this.getDeployment(BlockchainContractType.Portfolio);
     await this.getDeployment(BlockchainContractType.TradePairs);
+    await this.getDeployment(BlockchainContractType.OrderBooks);
     this.contracts["AVAX"] = {
       contractName: "AVAX",
       inByte32: utils.fromUtf8("AVAX"),
@@ -243,6 +249,13 @@ abstract class AbstractBot {
         deployment = this.contracts["TradePairs"];
         this.tradePair = new ethers.Contract(deployment.address, deployment.abi.abi, this.contracts["SubnetWallet"]);
         this.contracts["TradePairs"].deployedContract = this.tradePair;
+
+        
+        deployment = this.contracts["OrderBooks"];
+        this.orderBooks = new ethers.Contract(deployment.address, deployment.abi.abi, this.contracts["SubnetWallet"]);
+        this.orderBookID = await this.tradePair.getBookId(this.tradePairByte32,0);
+        this.orderBookID1 = await this.tradePair.getBookId(this.tradePairByte32,1);
+        await this.getBestOrders();
 
         this.minTradeAmnt = this.pairObject.mintrade_amnt;
         this.maxTradeAmnt = this.pairObject.maxtrade_amnt;
@@ -1889,6 +1902,14 @@ abstract class AbstractBot {
       }
       
     }
+  }
+
+  async getBestOrders(){
+    const currentBestBid = await this.orderBooks.getTopOfTheBook(this.orderBookID);
+    const currentBestAsk = await this.orderBooks.getTopOfTheBook(this.orderBookID1);
+    this.currentBestBid = currentBestBid.price.toNumber()/1000000;
+    this.currentBestAsk = currentBestAsk.price.toNumber()/1000000;
+    return [this.currentBestBid,this.currentBestAsk];
   }
 
   async cleanUpAndExit() {

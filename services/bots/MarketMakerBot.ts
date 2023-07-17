@@ -20,6 +20,8 @@ class MarketMakerBot extends AbstractBot {
   protected refreshOrderTolerance: any;
   protected flatAmount: any;
   protected timer: any;
+  // protected bestAsk: any;
+  // protected bestBid: any;
 
   constructor(botId: number, pairStr: string, privateKey: string) {
     super(botId, pairStr, privateKey);
@@ -43,6 +45,7 @@ class MarketMakerBot extends AbstractBot {
     const initializing = await super.initialize();
     if (initializing) {
       await this.getNewMarketPrice();
+      // await this.getBestOrders();
 
       this.interval = 15000; //Min 10 seconds
 
@@ -106,8 +109,8 @@ class MarketMakerBot extends AbstractBot {
         console.log("000000000000000 COUNTER:",this.counter);
         let startingBidPrice = this.marketPrice.toNumber() * (1-this.bidSpread);
         let startingAskPrice = this.marketPrice.toNumber() * (1+this.askSpread);
-        const myBestAsk = this.orderbook.bestask() ? this.orderbook.bestask().price.toNumber() : undefined;
-        const myBestBid = this.orderbook.bestbid() ? this.orderbook.bestbid().price.toNumber() : undefined;
+        const myBestAsk = this.currentBestAsk ? this.currentBestAsk : undefined;
+        const myBestBid = this.currentBestBid ? this.currentBestBid : undefined;
 
         let bids: any[] = []; 
         let asks: any[] = [];
@@ -154,15 +157,13 @@ class MarketMakerBot extends AbstractBot {
             console.log("BEST ASK: ",myBestAsk, "STARTING BID PRICE: ", startingBidPrice)
             startingBidPrice = myBestAsk - (myBestAsk * this.orderLevelSpread);
 
-              await this.replaceAsks(asksSorted, startingAskPrice);
-              await this.replaceBids(bidsSorted, startingBidPrice);
+            Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
 
           } else if (myBestBid && startingAskPrice < myBestBid){
             console.log("BEST BID: ",myBestBid, "STARTING ASK PRICE: ", startingAskPrice)
             startingAskPrice = myBestBid + (myBestBid * this.orderLevelSpread);
 
-              await this.replaceBids(bidsSorted, startingBidPrice);
-              await this.replaceAsks(asksSorted, startingAskPrice);
+              Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
 
           } else {
             await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
@@ -176,7 +177,7 @@ class MarketMakerBot extends AbstractBot {
       //Update orders again after interval
       this.orderUpdater = setTimeout(async ()=>{
         if (this.status){
-          await Promise.all([this.getBalances(),this.processOpenOrders(),this.getNewMarketPrice(),this.correctNonce(this.contracts["SubNetProvider"])]);
+          await Promise.all([this.getBalances(),this.processOpenOrders(),this.getNewMarketPrice(),this.correctNonce(this.contracts["SubNetProvider"]),this.getBestOrders()]);
           this.timer = 2000;
           this.updateOrders();
         }
@@ -367,6 +368,11 @@ class MarketMakerBot extends AbstractBot {
       return this.initialDepositQuote;
     }
   }
+
+  // async getBestOrders(){
+  //   this.bestBid = getBottomOfTheBook
+  //   this.bestAsk = getTopOfTheBook
+  // }
 
 }
 
