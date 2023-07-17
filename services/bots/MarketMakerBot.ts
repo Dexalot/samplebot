@@ -302,17 +302,17 @@ class MarketMakerBot extends AbstractBot {
   // If there are enough availableFunds, it will return the intended amount according to configs, otherwise it will return as much as it can, otherwise it will return 0
   getQty(price: BigNumber, side: number, level: number, availableFunds: number): number {
     if (side === 0){
-      console.log("AVAILABLE FUNDS IN QUOTE BID: ",availableFunds, "AMOUNT: ",this.getLevelQty(level))
-      if (this.getLevelQty(level) < availableFunds * .975){
+      // console.log("AVAILABLE FUNDS IN QUOTE BID: ",availableFunds, "AMOUNT: ",this.getLevelQty(level))
+      if (this.getLevelQty(level) < availableFunds/price.toNumber() * .975){
         return this.getLevelQty(level);
       } else if (availableFunds > this.minTradeAmnt * 1.025){
-        return availableFunds*.975;
+        return availableFunds/price.toNumber() *.975;
       } else { return 0;}
     } else if (side === 1) {
-      console.log("AVAILABLE FUNDS ASK: ",availableFunds, "AMOUNT: ",this.getLevelQty(level))
+      // console.log("AVAILABLE FUNDS ASK: ",availableFunds, "AMOUNT: ",this.getLevelQty(level))
       if (this.getLevelQty(level) < availableFunds * .975){
           return this.getLevelQty(level);
-      } else if (availableFunds > this.minTradeAmnt * 1.025){
+      } else if (availableFunds * .975 > this.minTradeAmnt * 1.025){
         return availableFunds * .975;
       } else {return 0;}
     } else { 
