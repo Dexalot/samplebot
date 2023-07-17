@@ -7,6 +7,7 @@ import { BlockchainContractType } from "../../models/BlockchainContractType";
 import { BigNumber } from "bignumber.js";
 import { BigNumber as BigNumberEthers } from "ethers";
 import axios from "axios";
+import fs from "fs";
 import { getLogger } from "../logger";
 import OrderBook from "./orderbook";
 import NewOrder from "./classes";
@@ -476,6 +477,7 @@ abstract class AbstractBot {
       const gasest = await this.getAddOrderListGasEstimate(clientOrderIds, prices, quantities, sides, type2s);
 
       this.logger.warn(`${this.instanceName} Gas Est ${gasest.toString()}`);
+      await this.getLatestNonce(this.contracts["SubNetProvider"]);
       const tx = await this.tradePair.addLimitOrderList(
         this.tradePairByte32,
         clientOrderIds,
@@ -649,6 +651,8 @@ abstract class AbstractBot {
         );
 
         this.addOrderToMap(order);
+
+        await this.getLatestNonce(this.contracts["SubNetProvider"]);
 
         const tx = await this.tradePair.addOrder(
           order.traderaddress,
@@ -850,9 +854,25 @@ abstract class AbstractBot {
     try {
       const expectedNonce = await provider.provider.getTransactionCount(this.account);
       provider.nonce = expectedNonce;
+      fs.writeFile('./services/bots/nonce.json', JSON.stringify({nonce:provider.nonce}), (err) => {
+        if (err) throw err;
+      });
     } catch (error) {
       this.logger.error(`${this.instanceName} 'Error during nonce correction`, error);
     }
+  }
+
+  async getLatestNonce (provider: any) {
+    return fs.readFile('./services/bots/nonce.json', (err, data) => {
+      if (err) throw err;
+      provider.nonce = JSON.parse(data.toString()).nonce;
+      console.log("NONCE:", provider.nonce);
+      return fs.writeFile('./services/bots/nonce.json', JSON.stringify({nonce:provider.nonce + 1}), (err) => {
+        if (err) throw err;
+        return true;
+      });
+    });
+
   }
 
   async getWalletBalance(tokenDetails: any, provider: any, envType = "subnet") {
@@ -1174,6 +1194,7 @@ abstract class AbstractBot {
         this.orderCount++;
         this.logger.warn(`${this.instanceName} Cancelling all outstanding orders, OrderNbr ${this.orderCount}`);
         const gasest = await this.getCancelAllOrdersGasEstimate(orderIds);
+        await this.getLatestNonce(this.contracts["SubNetProvider"]);
         const tx = await this.tradePair.cancelOrderList(orderIds, await this.getOptions(this.contracts["SubNetProvider"], gasest));
 
         //const tx = await this.race({ promise:oderCancel , count: this.orderCount} );
@@ -1237,6 +1258,7 @@ abstract class AbstractBot {
         } ::: ${order.quantity.toString()} ${this.base} @ ${order.price.toString()} ${this.quote}`
       );
       const options = await this.getOptions(this.contracts["SubNetProvider"], BigNumberEthers.from(1000000));
+      await this.getLatestNonce(this.contracts["SubNetProvider"]);
       const tx = await this.tradePair.cancelOrder(order.id, options);
       //const tx = await this.race({ promise:oderCancel , count: this.orderCount} );
       //const orderLog = await this.race({ promise: tx.wait(), count: this.orderCount} );
@@ -1341,6 +1363,7 @@ abstract class AbstractBot {
         } ::: ${quantity.toString()} ${this.base} @ ${price.toString()} ${this.quote}`
       );
       const options = await this.getOptions(this.contracts["SubNetProvider"], BigNumberEthers.from(1500000));
+      await this.getLatestNonce(this.contracts["SubNetProvider"]);
       const tx = await this.tradePair.cancelReplaceOrder(order.id, clientOrderId, priceToSend, quantityToSend, options);
       const orderLog = await tx.wait();
 

@@ -7,3 +7,4 @@ Procfile
 .env.*
 package-lock.json
 /logs-*
+/services/bots/nonce.json
