@@ -1910,8 +1910,8 @@ abstract class AbstractBot {
   }
 
   async getBestOrders(){
-    const currentBestBid = await this.orderBooks.getTopOfTheBook(this.orderBookID1);
-    const currentBestAsk = await this.orderBooks.getTopOfTheBook(this.orderBookID);
+    const currentBestBid = await this.orderBooks.getTopOfTheBook(this.orderBookID);
+    const currentBestAsk = await this.orderBooks.getTopOfTheBook(this.orderBookID1);
     this.currentBestBid = currentBestBid.price.toNumber()/1000000;
     this.currentBestAsk = currentBestAsk.price.toNumber()/1000000;
     console.log(this.currentBestAsk);
