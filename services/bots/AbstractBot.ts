@@ -355,7 +355,8 @@ abstract class AbstractBot {
     if (this.orderUpdater !== undefined) {
       clearTimeout(this.orderUpdater);
     }
-    this.cancelOrderList([], 100)
+    setTimeout(()=> {
+      this.cancelOrderList([], 100)
       .then(() => {
         this.logger.warn(`${this.instanceName} Waiting 5 seconds before removing order listeners"...`);
         setTimeout(async () => {
@@ -376,6 +377,7 @@ abstract class AbstractBot {
       .catch((e: any) => {
         this.logger.error(`${this.instanceName} problem in Bot Stop + ${e.message}`);
       });
+    },5000);
   }
 
   getSettingValue(settingname: string) {
@@ -478,7 +480,6 @@ abstract class AbstractBot {
       const gasest = await this.getAddOrderListGasEstimate(clientOrderIds, prices, quantities, sides, type2s);
 
       this.logger.warn(`${this.instanceName} Gas Est ${gasest.toString()}`);
-      await this.getLatestNonce(this.contracts["SubNetProvider"]);
       const tx = await this.tradePair.addLimitOrderList(
         this.tradePairByte32,
         clientOrderIds,
@@ -652,8 +653,6 @@ abstract class AbstractBot {
         );
 
         this.addOrderToMap(order);
-
-        await this.getLatestNonce(this.contracts["SubNetProvider"]);
 
         const tx = await this.tradePair.addOrder(
           order.traderaddress,
@@ -856,26 +855,9 @@ abstract class AbstractBot {
     try {
       const expectedNonce = await provider.provider.getTransactionCount(this.account);
       provider.nonce = expectedNonce;
-      fs.writeFile(filePath, JSON.stringify({nonce:provider.nonce}), (err) => {
-        if (err) throw err;
-      });
     } catch (error) {
       this.logger.error(`${this.instanceName} 'Error during nonce correction`, error);
     }
-  }
-
-  async getLatestNonce (provider: any) {
-    let filePath = path.join(__dirname, './nonce.json');
-    return fs.readFile(filePath, (err, data) => {
-      if (err) throw err;
-      provider.nonce = JSON.parse(data.toString()).nonce;
-      console.log("NONCE:", provider.nonce);
-      return fs.writeFile(filePath, JSON.stringify({nonce:provider.nonce + 1}), (err) => {
-        if (err) throw err;
-        return true;
-      });
-    });
-
   }
 
   async getWalletBalance(tokenDetails: any, provider: any, envType = "subnet") {
@@ -1197,7 +1179,6 @@ abstract class AbstractBot {
         this.orderCount++;
         this.logger.warn(`${this.instanceName} Cancelling all outstanding orders, OrderNbr ${this.orderCount}`);
         const gasest = await this.getCancelAllOrdersGasEstimate(orderIds);
-        await this.getLatestNonce(this.contracts["SubNetProvider"]);
         const tx = await this.tradePair.cancelOrderList(orderIds, await this.getOptions(this.contracts["SubNetProvider"], gasest));
 
         //const tx = await this.race({ promise:oderCancel , count: this.orderCount} );
@@ -1261,7 +1242,6 @@ abstract class AbstractBot {
         } ::: ${order.quantity.toString()} ${this.base} @ ${order.price.toString()} ${this.quote}`
       );
       const options = await this.getOptions(this.contracts["SubNetProvider"], BigNumberEthers.from(1000000));
-      await this.getLatestNonce(this.contracts["SubNetProvider"]);
       const tx = await this.tradePair.cancelOrder(order.id, options);
       //const tx = await this.race({ promise:oderCancel , count: this.orderCount} );
       //const orderLog = await this.race({ promise: tx.wait(), count: this.orderCount} );
@@ -1366,7 +1346,6 @@ abstract class AbstractBot {
         } ::: ${quantity.toString()} ${this.base} @ ${price.toString()} ${this.quote}`
       );
       const options = await this.getOptions(this.contracts["SubNetProvider"], BigNumberEthers.from(1500000));
-      await this.getLatestNonce(this.contracts["SubNetProvider"]);
       const tx = await this.tradePair.cancelReplaceOrder(order.id, clientOrderId, priceToSend, quantityToSend, options);
       const orderLog = await tx.wait();
 
@@ -1931,10 +1910,13 @@ abstract class AbstractBot {
   }
 
   async getBestOrders(){
-    const currentBestBid = await this.orderBooks.getTopOfTheBook(this.orderBookID);
-    const currentBestAsk = await this.orderBooks.getTopOfTheBook(this.orderBookID1);
+    const currentBestBid = await this.orderBooks.getTopOfTheBook(this.orderBookID1);
+    const currentBestAsk = await this.orderBooks.getTopOfTheBook(this.orderBookID);
     this.currentBestBid = currentBestBid.price.toNumber()/1000000;
     this.currentBestAsk = currentBestAsk.price.toNumber()/1000000;
+    console.log(this.currentBestAsk);
+    console.log(this.currentBestBid);
+
     return [this.currentBestBid,this.currentBestAsk];
   }
 
@@ -1943,7 +1925,6 @@ abstract class AbstractBot {
       const timeout = 10; //Min 6 seconds because this.stop calls cancelall and waits for 5 seconds
       this.logger.warn(`${this.instanceName} === Process Exit Called === `);
       this.cleanupCalled = true;
-      await utils.sleep(10000);
       this.logger.warn(`${this.instanceName} === STOPPING === `);
       await this.stop();
 

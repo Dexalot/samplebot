@@ -152,7 +152,13 @@ class MarketMakerBot extends AbstractBot {
           }
         });
         if (duplicates.length > 0){
-          this.cancelOrderList(duplicates);
+          let toCancel = [];
+          for (let i = 0; i < duplicates.length; i++){
+            if (duplicates[i]){
+              toCancel.push(duplicates[i]);
+            }
+          }
+          this.cancelOrderList(toCancel);
         }
       
         let bidsSorted = sortOrders(bids, "price", "descending");
@@ -163,13 +169,13 @@ class MarketMakerBot extends AbstractBot {
             console.log("BEST ASK: ",myBestAsk, "STARTING BID PRICE: ", startingBidPrice)
             startingBidPrice = myBestAsk - (myBestAsk * this.orderLevelSpread);
 
-            Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
+            await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
 
           } else if (myBestBid && startingAskPrice < myBestBid){
             console.log("BEST BID: ",myBestBid, "STARTING ASK PRICE: ", startingAskPrice)
             startingAskPrice = myBestBid + (myBestBid * this.orderLevelSpread);
 
-              Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
+            await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
 
           } else {
             await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
@@ -232,11 +238,11 @@ class MarketMakerBot extends AbstractBot {
       console.log("ERROR - NewOrderList empty");
     } else if (newOrderList.length == 1){
       if (this.status){
-        await this.addOrder(newOrderList[0].side,newOrderList[0].quantity,newOrderList[0].price,1,3,newOrderList[0].level);
+        this.addOrder(newOrderList[0].side,newOrderList[0].quantity,newOrderList[0].price,1,3,newOrderList[0].level);
       }
     } else {
       if (this.status){
-        await this.addLimitOrderList(newOrderList);
+        this.addLimitOrderList(newOrderList);
       }
     }
   }
