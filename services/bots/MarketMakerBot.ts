@@ -107,6 +107,12 @@ class MarketMakerBot extends AbstractBot {
         this.counter ++;
         this.timer = this.interval;
         console.log("000000000000000 COUNTER:",this.counter);
+
+        // having issues with nonces when avax/usdc and avax/usdt send orders at the same time. This gives priority to avaxusdc
+        if (this.tradePairIdentifier == "AVAX/USDt"){
+          await utils.sleep(500);
+        }
+        await this.correctNonce(this.contracts["SubNetProvider"]);
         let startingBidPrice = this.marketPrice.toNumber() * (1-this.bidSpread);
         let startingAskPrice = this.marketPrice.toNumber() * (1+this.askSpread);
         const myBestAsk = this.currentBestAsk ? this.currentBestAsk : undefined;
@@ -177,7 +183,7 @@ class MarketMakerBot extends AbstractBot {
       //Update orders again after interval
       this.orderUpdater = setTimeout(async ()=>{
         if (this.status){
-          await Promise.all([this.getBalances(),this.processOpenOrders(),this.getNewMarketPrice(),this.correctNonce(this.contracts["SubNetProvider"]),this.getBestOrders()]);
+          await Promise.all([this.getBalances(),this.processOpenOrders(),this.getNewMarketPrice(),this.getBestOrders()]);
           this.timer = 2000;
           this.updateOrders();
         }
