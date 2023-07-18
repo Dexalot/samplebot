@@ -372,7 +372,7 @@ abstract class AbstractBot {
             this.filter = undefined;
             this.logger.warn(`${this.instanceName} Removed order listeners`);
           }
-        }, 5000);
+        }, 3000);
       })
       .catch((e: any) => {
         this.logger.error(`${this.instanceName} problem in Bot Stop + ${e.message}`);
@@ -468,8 +468,7 @@ abstract class AbstractBot {
         0,
         0,
         0,
-        newOrders[i].level,
-        Date.now()
+        newOrders[i].level
       );
 
       this.addOrderToMap(order);
@@ -648,8 +647,7 @@ abstract class AbstractBot {
           0,
           0,
           0,
-          level,
-          Date.now()
+          level
         );
 
         this.addOrderToMap(order);
@@ -775,7 +773,7 @@ abstract class AbstractBot {
   async getOptions(provider: any = this.contracts["SubNetProvider"], gasEstimate: BigNumberEthers = BigNumberEthers.from(700000)) {
     const gasPx = await this.getGasPrice(provider);
     const maxFeePerGas = Math.ceil(gasPx.mul(115).div(100).toNumber());
-    const gasLimit = Math.min(gasEstimate.mul(102).div(100).toNumber(), 30000000); // Block Gas Limit 30M
+    const gasLimit = Math.min(gasEstimate.mul(115).div(100).toNumber(), 30000000); // Block Gas Limit 30M
     const optionsWithNonce = { gasLimit, maxFeePerGas, maxPriorityFeePerGas: 1, nonce: 0 };
 
     optionsWithNonce.nonce = provider.nonce++;
@@ -888,7 +886,7 @@ abstract class AbstractBot {
       this.contracts["AVAX"].portfolioTot = utils.formatUnits(bal.total, tokenDetails.evmdecimals);
       this.contracts["AVAX"].portfolioAvail = utils.formatUnits(bal.available, tokenDetails.evmdecimals);
 
-      utils.printBalances(this.account, "AVAX", this.contracts["AVAX"]);
+      //utils.printBalances(this.account, "AVAX", this.contracts["AVAX"]);
 
       // if (this.contracts["AVAX"].mainnetBal <= this.getSettingValue('LOW_AVAX_CHAIN_BALANCE') ) {
       //   let text= "*****************" +  this.instanceName + " LOW AVAX Chain Balance for account :" + this.account ;
@@ -909,7 +907,7 @@ abstract class AbstractBot {
       this.contracts["ALOT"].portfolioTot = utils.formatUnits(bal.total, tokenDetails.evmdecimals);
       this.contracts["ALOT"].portfolioAvail = utils.formatUnits(bal.available, tokenDetails.evmdecimals);
 
-      utils.printBalances(this.account, "ALOT", this.contracts["ALOT"]);
+      //utils.printBalances(this.account, "ALOT", this.contracts["ALOT"]);
 
       // if (this.contracts["ALOT"].subnetBal <= this.getSettingValue("LOW_AVAX_CHAIN_BALANCE")) {
       //   let text = "*****************" + this.instanceName + " LOW AVAX Chain Balance for account :" + this.account;
@@ -937,7 +935,7 @@ abstract class AbstractBot {
         this.contracts[this.base].portfolioTot = utils.formatUnits(bal.total, tokenDetails.evmdecimals);
         this.contracts[this.base].portfolioAvail = utils.formatUnits(bal.available, tokenDetails.evmdecimals);
 
-        utils.printBalances(this.account, this.base, this.contracts[this.base]);
+        //utils.printBalances(this.account, this.base, this.contracts[this.base]);
       }
 
       if (this.quote !== "AVAX" && this.quote !== "ALOT") {
@@ -949,7 +947,7 @@ abstract class AbstractBot {
         bal = await portfolio.getBalance(this.account, this.contracts[this.quote].inByte32); //quoteBal
         this.contracts[this.quote].portfolioTot = utils.formatUnits(bal.total, tokenDetails.evmdecimals);
         this.contracts[this.quote].portfolioAvail = utils.formatUnits(bal.available, tokenDetails.evmdecimals);
-        utils.printBalances(this.account, this.quote, this.contracts[this.quote]);
+        //utils.printBalances(this.account, this.quote, this.contracts[this.quote]);
       }
     } catch (error) {
       this.logger.error(`${this.instanceName} Error during  getBalance`, error);
@@ -975,8 +973,7 @@ abstract class AbstractBot {
     gasUsed: any,
     gasPrice: any,
     cumulativeGasUsed: any,
-    level: any,
-    timestamp: any
+    level: any
   ): any {
     return new Order({
       id,
@@ -1001,8 +998,7 @@ abstract class AbstractBot {
       gasUsed,
       gasPrice: utils.formatUnits(gasPrice, 9),
       cumulativeGasUsed,
-      level,
-      timestamp: Date.now()
+      level
     });
   }
 
@@ -1052,8 +1048,7 @@ abstract class AbstractBot {
           tx.gasUsed.toString(),
           tx.effectiveGasPrice ? tx.effectiveGasPrice.toString() : "225",
           tx.cumulativeGasUsed.toString(),
-          level,
-          Date.now()
+          level
         );
 
         if (utils.statusMap[order.status] === "NEW" || utils.statusMap[order.status] === "PARTIAL") {
@@ -1160,11 +1155,12 @@ abstract class AbstractBot {
 
   async cancelOrderList(orderIds: string[] = [], nbrofOrderstoCancel = 30) {
     try {
+      let idsToCancel: string[] = [];
       if (orderIds.length === 0) {
         let i = 0;
         for (const order of this.orders.values()) {
           if (order.id){
-            orderIds.push(order.id);
+            idsToCancel.push(order.id);
           }
           i++;
           if (i >= nbrofOrderstoCancel) {
@@ -1172,14 +1168,21 @@ abstract class AbstractBot {
             break;
           }
         }
+      } else {
+        for (let i = 0; i < orderIds.length; i++){
+          if (orderIds[i]){
+            idsToCancel.push(orderIds[i]);
+          }
+        }
       }
 
       //const orderIds = Array.from(this.orders.keys());
-      if (orderIds.length > 0) {
+      if (idsToCancel.length > 0) {
         this.orderCount++;
         this.logger.warn(`${this.instanceName} Cancelling all outstanding orders, OrderNbr ${this.orderCount}`);
-        const gasest = await this.getCancelAllOrdersGasEstimate(orderIds);
-        const tx = await this.tradePair.cancelOrderList(orderIds, await this.getOptions(this.contracts["SubNetProvider"], gasest));
+        const gasest = await this.getCancelAllOrdersGasEstimate(idsToCancel);
+        await this.correctNonce(this.contracts["SubNetProvider"]);
+        const tx = await this.tradePair.cancelOrderList(idsToCancel, await this.getOptions(this.contracts["SubNetProvider"], gasest));
 
         //const tx = await this.race({ promise:oderCancel , count: this.orderCount} );
         //const orderLog = await tx.wait();
@@ -1317,8 +1320,8 @@ abstract class AbstractBot {
     if (!this.status) {
       return;
     }
-    if (tries > 2){
-      this.cancelOrder(order.id);
+    if (tries > 1){
+      this.cancelOrder(order);
       return
     }
 
@@ -1340,7 +1343,7 @@ abstract class AbstractBot {
 
       console.log("CANCEL REPLACE: New clientOrderid: ", clientOrderId," PRICE:", price.toNumber(), " QTY: ", quantity.toNumber());
 
-      //const gasest = await this.getCancelReplaceOrderGasEstimate(order.id, clientOrderId ,priceToSend, quantityToSend);
+      const gasest = await this.getCancelReplaceOrderGasEstimate(order.id, clientOrderId ,priceToSend, quantityToSend);
 
       //console.log("CANCEL REPLACE: GOT GASEST");
 
@@ -1351,7 +1354,7 @@ abstract class AbstractBot {
           order.side === 0 ? "BUY" : "SELL"
         } ::: ${quantity.toString()} ${this.base} @ ${price.toString()} ${this.quote}`
       );
-      const options = await this.getOptions(this.contracts["SubNetProvider"], BigNumberEthers.from(1500000));
+      const options = await this.getOptions(this.contracts["SubNetProvider"], gasest);
       const tx = await this.tradePair.cancelReplaceOrder(order.id, clientOrderId, priceToSend, quantityToSend, options);
       const orderLog = await tx.wait();
 
@@ -1431,7 +1434,7 @@ abstract class AbstractBot {
   }
 
   async processOpenOrders() {
-    this.logger.info(`${this.instanceName} Recovering open orders:`);
+    //this.logger.info(`${this.instanceName} Recovering open orders:`);
     const orders = await this.getOpenOrders();
     if (orders){
       for (const order of orders) {
@@ -1459,7 +1462,7 @@ abstract class AbstractBot {
     }
 
     await this.checkOrdersInChain();
-    this.logger.info(`${this.instanceName} open orders recovered:`);
+    //this.logger.info(`${this.instanceName} open orders recovered:`);
     return true;
   }
 
@@ -1468,12 +1471,9 @@ abstract class AbstractBot {
   async checkOrdersInChain() {
     const promises: any = [];
     const orders: any = [];
-    const time = Date.now()
     for (const order of this.orders.values()) {
-      if ((time - order.timestamp)/1000 > this.interval/2 || !order.timestamp){ // If the order hasn't been updated within the interval time, check the chain to make sure we're not missing any information about it.
-        orders.push(order);
-        promises.push(this.tradePair.getOrder(order.id));
-      }
+      orders.push(order);
+      promises.push(this.tradePair.getOrder(order.id));
     }
     try {
       const results = await Promise.all(promises);
@@ -1511,8 +1511,7 @@ abstract class AbstractBot {
         "0",
         "0",
         "0",
-        orderinMemory.level,
-        orderinMemory.timestamp
+        orderinMemory.level
       ); //tx, blocknbr , gasUsed, gasPrice, cumulativeGasUsed) ;
 
       const ordstatus = orderInChain.status;
@@ -1931,11 +1930,11 @@ abstract class AbstractBot {
 
   async cleanUpAndExit() {
     if (!this.cleanupCalled) {
-      const timeout = 10; //Min 6 seconds because this.stop calls cancelall and waits for 5 seconds
+      const timeout = 15; //Min 6 seconds because this.stop calls cancelall and waits for 5 seconds
       this.logger.warn(`${this.instanceName} === Process Exit Called === `);
       this.cleanupCalled = true;
       this.logger.warn(`${this.instanceName} === STOPPING === `);
-      await this.stop();
+      this.stop();
 
       setTimeout(() => {
         this.logger.warn(`${this.instanceName} === SHUTTING DOWN === `);
