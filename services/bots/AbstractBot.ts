@@ -1504,7 +1504,11 @@ abstract class AbstractBot {
     try {
       const results = await Promise.all(promises);
       for (let i = 0; i < results.length; i++) {
-        this.checkOrderInChain(orders[i], results[i]);
+        if (!results[i]){
+          this.removeOrderFromMap(orders[i])
+        } else {
+          this.checkOrderInChain(orders[i], results[i]);
+        }
         // this.logger.debug(
         //   `${this.instanceName} checkOrdersInChain: ${orders[i].side === 0 ? "BUY" : "SELL"} ${orders[i].quantity.toString()} ${
         //     this.base
