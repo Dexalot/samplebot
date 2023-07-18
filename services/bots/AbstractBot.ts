@@ -565,9 +565,9 @@ abstract class AbstractBot {
     }
   }
 
-  async addOrder(side: number, qty: BigNumber | undefined, px: BigNumber | undefined, ordtype = 1, ordType2 = 3, level: number) {
+  async addOrder(side: number, qty: BigNumber | undefined, px: BigNumber | undefined, ordtype = 1, ordType2 = 3, level: number, tries: number = 0) {
     // LIMIT ORDER  & GTC)
-    if (!this.status) {
+    if (!this.status || tries>2) {
       return;
     }
 
@@ -732,6 +732,11 @@ abstract class AbstractBot {
               price ? price.toString() : "undefined"
             } Revert Reason ${reason}`
           );
+          if (reason == "T-CLOI-01"){
+            setTimeout(()=>{
+              this.addOrder(side, qty, px, ordtype, ordType2, level, tries + 1);
+            }, 2000)
+          }
         } else {
           // this.logger.error(
           //   `${this.instanceName} addOrder error: ${side === 0 ? "BUY" : "SELL"}  ${quantity ? quantity.toString() : "undefined"} @ ${
