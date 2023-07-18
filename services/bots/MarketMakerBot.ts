@@ -270,6 +270,7 @@ class MarketMakerBot extends AbstractBot {
           this.cancelReplaceOrder(order,bidPrice,bidQty);
         } else {
           console.log("NOT ENOUGH FUNDS TO REPLACE", bidQty.toNumber() * bidPrice.toNumber(), this.contracts[this.quote].portfolioAvail, order.totalamount.toNumber(), order.quantityfilled.toNumber(), bidsEnRoute);
+          this.cancelOrder(order);
         }
       } else {
         console.log("MAKE FRESH ORDER:", order.id,order.status);
@@ -299,6 +300,7 @@ class MarketMakerBot extends AbstractBot {
           this.cancelReplaceOrder(order,askPrice,askQty);
         } else {
           console.log("NOT ENOUGH FUNDS TO REPLACE", askQty.toNumber(), this.contracts[this.base].portfolioAvail, order.totalamount.toNumber(), order.quantityfilled.toNumber(), asksEnRoute);
+          this.cancelOrder(order);
         }
       } else {
         console.log("MAKE FRESH ORDER");
