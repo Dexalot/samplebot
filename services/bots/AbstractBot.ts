@@ -422,7 +422,13 @@ abstract class AbstractBot {
     return new BigNumber(this.minTradeAmnt * (1 + Math.random() * 0.2)).div(price);
   }
 
-  async addLimitOrderList(newOrders: NewOrder[]) {
+  async addLimitOrderList(newOrders: NewOrder[], tries: number = 0) {
+
+    if(tries > 2){
+      this.cleanUpAndExit();
+      return
+    }
+
     const clientOrderIds = [];
     const prices = [];
     const quantities = [];
@@ -543,7 +549,9 @@ abstract class AbstractBot {
         if (reason) {
           this.logger.warn(`${this.instanceName} addLimitOrderList error: Revert Reason ${reason}`);
         } else {
-          this.logger.error(`${this.instanceName} addLimitOrderList error:`, error);
+          //this.logger.error(`${this.instanceName} addLimitOrderList error:`, error);
+          console.log("FAILED TO ADD ORDER LIST. TRYING AGAIN...")
+          this.addLimitOrderList(newOrders,tries + 1);
         }
       }
     }
@@ -1409,12 +1417,6 @@ abstract class AbstractBot {
           );
           this.cancelReplaceOrder(order,price,quantity, tries +1);
         } else {
-          this.logger.error(
-            `${this.instanceName} Order Cancel/Replace error ${order.side === 0 ? "BUY" : "SELL"} ::: ${quantity.toFixed(
-              this.baseDisplayDecimals
-            )} @ ${price.toFixed(this.quoteDisplayDecimals)}`,
-            error
-          );
           this.cancelReplaceOrder(order,price,quantity, tries +1);
         }
       }
@@ -1541,7 +1543,8 @@ abstract class AbstractBot {
         return true;
       }
     } catch (error: any) {
-      this.logger.error(`${this.instanceName} Error during checkOrderInChain ${orderinMemory.clientOrderId}`, error);
+      //this.logger.error(`${this.instanceName} Error during checkOrderInChain ${orderinMemory.clientOrderId}`, error);
+      console.log("error during checkorderinchain", orderinMemory.clientOrderId, error)
       return false;
     }
   }
