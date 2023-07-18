@@ -124,7 +124,7 @@ class MarketMakerBot extends AbstractBot {
         let duplicates: any[] = [];
 
         this.orders.forEach((e,i)=>{
-          if (e.side === 0 && e.level > 0){
+          if (e.side === 0 && e.level > 0 && (e.status == 0 || e.status == 2)){
             let skip = false;
             for (let i = 0;i<bids.length; i++){
               if (bids[i].level === e.level){
@@ -136,7 +136,7 @@ class MarketMakerBot extends AbstractBot {
             if (!skip){
               bids.push(e);
             }
-          } else if (e.side === 1 && e.level > 0) {
+          } else if (e.side === 1 && e.level > 0 && (e.status == 0 || e.status == 2)) {
             let skip = false;
             for (let i = 0;i<asks.length; i++){
               if (asks[i].level === e.level){
@@ -261,7 +261,7 @@ class MarketMakerBot extends AbstractBot {
           order = bidsSorted[j];
         }
       }
-      if (order.id && (order.status == 0 || order.status == 2 || order.status == 7)){
+      if (order.id){
         let bidPrice = new BigNumber(startingBidPrice * (1-this.getSpread(i)));
         let bidQty = new BigNumber(this.getQty(bidPrice,0,i+1,this.contracts[this.quote].portfolioAvail + (bidPrice.toNumber() * (order.totalamount.toNumber() - order.quantityfilled.toNumber())) - (bidsEnRoute * bidPrice.toNumber())));
         if (bidQty.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
@@ -291,7 +291,7 @@ class MarketMakerBot extends AbstractBot {
           order = asksSorted[j];
         }
       }
-      if (order.id && (order.status == 0 || order.status == 2 || order.status == 7)){
+      if (order.id){
         let askPrice = new BigNumber(startingAskPrice * (1+this.getSpread(i)));
         let askQty = new BigNumber(this.getQty(askPrice,1,i+1,this.contracts[this.base].portfolioAvail + (order.totalamount.toNumber() - order.quantityfilled.toNumber()) - asksEnRoute));
         if (askQty.toNumber() * askPrice.toNumber() > this.minTradeAmnt){
