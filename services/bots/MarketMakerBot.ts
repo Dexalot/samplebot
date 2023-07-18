@@ -316,14 +316,14 @@ class MarketMakerBot extends AbstractBot {
       // console.log("AVAILABLE FUNDS IN QUOTE BID: ",availableFunds, "AMOUNT: ",this.getLevelQty(level))
       if (this.getLevelQty(level) < availableFunds/price.toNumber() * .975){
         return this.getLevelQty(level);
-      } else if (availableFunds/price.toNumber() *.975 > this.minTradeAmnt * 1.025){
+      } else if (availableFunds *.975 > this.minTradeAmnt * 1.025){
         return availableFunds/price.toNumber() *.975;
       } else { return 0;}
     } else if (side === 1) {
       // console.log("AVAILABLE FUNDS ASK: ",availableFunds, "AMOUNT: ",this.getLevelQty(level))
       if (this.getLevelQty(level) < availableFunds * .975){
           return this.getLevelQty(level);
-      } else if (availableFunds * .975 > this.minTradeAmnt * 1.025){
+      } else if (availableFunds * price.toNumber() * .975 > this.minTradeAmnt * 1.025){
         return availableFunds * .975;
       } else {return 0;}
     } else { 
