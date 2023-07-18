@@ -1245,7 +1245,10 @@ abstract class AbstractBot {
     }
   }
 
-  async cancelOrder(order: any) {
+  async cancelOrder(order: any, tries:number = 0) {
+    if (tries > 2){
+      console.log("unable to cancel order:",order);
+    }
     try {
       // const gasest = await this.getCancelOrderGasEstimate(order);
 
@@ -1302,6 +1305,9 @@ abstract class AbstractBot {
           )} @ ${order.price.toFixed(this.quoteDisplayDecimals)} Invalid Nonce`
         );
         await this.correctNonce(this.contracts["SubNetProvider"]);
+        setTimeout(()=>{
+          this.cancelOrder(order, tries+1);
+        }, 2000)
       } else {
         const reason = await this.getRevertReason(error);
         if (reason) {
@@ -1312,14 +1318,15 @@ abstract class AbstractBot {
           );
           if (reason === "T-OAEX-01") {
             this.removeOrderFromMap(order);
+          } else {
+            setTimeout(()=>{
+              this.cancelOrder(order, tries+1);
+            }, 2000)
           }
         } else {
-          // this.logger.error(
-          //   `${this.instanceName} Order Cancel error ${order.side === 0 ? "BUY" : "SELL"} ::: ${order.quantity.toFixed(
-          //     this.baseDisplayDecimals
-          //   )} @ ${order.price.toFixed(this.quoteDisplayDecimals)}`,
-          //   error
-          // );
+          setTimeout(()=>{
+            this.cancelOrder(order, tries+1);
+          }, 2000)
         }
       }
       return false;
@@ -1330,7 +1337,7 @@ abstract class AbstractBot {
     if (!this.status) {
       return;
     }
-    if (tries > 1){
+    if (tries > 2){
       this.cancelOrder(order);
       return
     }
@@ -1408,7 +1415,9 @@ abstract class AbstractBot {
           )} @ ${price.toFixed(this.quoteDisplayDecimals)} Invalid Nonce`
         );
         await this.correctNonce(this.contracts["SubNetProvider"]);
-        this.cancelReplaceOrder(order,price,quantity, tries +1);
+        setTimeout(()=>{
+          this.cancelReplaceOrder(order,price,quantity, tries +1);
+        },2000)
       } else {
         const reason = await this.getRevertReason(error);
         if (reason) {
@@ -1420,10 +1429,14 @@ abstract class AbstractBot {
                 this.baseDisplayDecimals
               )} @ ${price.toFixed(this.quoteDisplayDecimals)} Revert Reason ${reason}`
             );
-            this.cancelReplaceOrder(order,price,quantity, tries +1);
+            setTimeout(()=>{
+              this.cancelReplaceOrder(order,price,quantity, tries +1);
+            },2000)
           }
         } else {
-          this.cancelReplaceOrder(order,price,quantity, tries +1);
+          setTimeout(()=>{
+            this.cancelReplaceOrder(order,price,quantity, tries +1);
+          },2000)
         }
       }
       return false;
