@@ -911,21 +911,21 @@ abstract class AbstractBot {
 
       utils.printBalances(this.account, "ALOT", this.contracts["ALOT"]);
 
-      if (this.contracts["ALOT"].subnetBal <= this.getSettingValue("LOW_AVAX_CHAIN_BALANCE")) {
-        let text = "*****************" + this.instanceName + " LOW AVAX Chain Balance for account :" + this.account;
-        text = text + utils.lineBreak + "*****************************************************************************************";
-        text =
-          text +
-          utils.lineBreak +
-          "LOW AVAX Chain Balance, you will not be able pay for gas fees soon unless you replenish your account. Current Balance: " +
-          this.contracts["ALOT"].subnetBal;
-        text =
-          text +
-          utils.lineBreak +
-          "*****************************************************************************************" +
-          utils.lineBreak;
-        this.logger.warn(`${text}`);
-      }
+      // if (this.contracts["ALOT"].subnetBal <= this.getSettingValue("LOW_AVAX_CHAIN_BALANCE")) {
+      //   let text = "*****************" + this.instanceName + " LOW AVAX Chain Balance for account :" + this.account;
+      //   text = text + utils.lineBreak + "*****************************************************************************************";
+      //   text =
+      //     text +
+      //     utils.lineBreak +
+      //     "LOW AVAX Chain Balance, you will not be able pay for gas fees soon unless you replenish your account. Current Balance: " +
+      //     this.contracts["ALOT"].subnetBal;
+      //   text =
+      //     text +
+      //     utils.lineBreak +
+      //     "*****************************************************************************************" +
+      //     utils.lineBreak;
+      //   this.logger.warn(`${text}`);
+      // }
 
       //Chain Base wallet
       if (this.base !== "AVAX" && this.base !== "ALOT") {
@@ -1217,6 +1217,8 @@ abstract class AbstractBot {
       }
     } catch (error) {
       this.logger.error(`${this.instanceName} Error during  CancelAll`, error);
+      await this.correctNonce(this.contracts["SubNetProvider"]);
+      this.cancelOrderList();
     }
   }
 
@@ -1311,9 +1313,13 @@ abstract class AbstractBot {
     }
   }
 
-  async cancelReplaceOrder(order: any, price: BigNumber, quantity: BigNumber) {
+  async cancelReplaceOrder(order: any, price: BigNumber, quantity: BigNumber, tries: number = 0) {
     if (!this.status) {
       return;
+    }
+    if (tries > 2){
+      this.cancelOrder(order.id);
+      return
     }
 
     try {
@@ -1389,6 +1395,7 @@ abstract class AbstractBot {
           )} @ ${price.toFixed(this.quoteDisplayDecimals)} Invalid Nonce`
         );
         await this.correctNonce(this.contracts["SubNetProvider"]);
+        this.cancelReplaceOrder(order,price,quantity, tries +1);
       } else {
         const reason = await this.getRevertReason(error);
         if (reason) {
@@ -1397,6 +1404,7 @@ abstract class AbstractBot {
               this.baseDisplayDecimals
             )} @ ${price.toFixed(this.quoteDisplayDecimals)} Revert Reason ${reason}`
           );
+          this.cancelReplaceOrder(order,price,quantity, tries +1);
         } else {
           this.logger.error(
             `${this.instanceName} Order Cancel/Replace error ${order.side === 0 ? "BUY" : "SELL"} ::: ${quantity.toFixed(
@@ -1404,6 +1412,7 @@ abstract class AbstractBot {
             )} @ ${price.toFixed(this.quoteDisplayDecimals)}`,
             error
           );
+          this.cancelReplaceOrder(order,price,quantity, tries +1);
         }
       }
       return false;

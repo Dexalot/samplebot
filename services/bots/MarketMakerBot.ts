@@ -213,7 +213,7 @@ class MarketMakerBot extends AbstractBot {
         let bidPrice = new BigNumber(initialBidPrice * (1-this.getSpread(levels[x][1]-1)));
         let bidQty = new BigNumber(this.getQty(bidPrice,0,levels[x][1],this.contracts[this.quote].portfolioAvail - (bidsEnroute * bidPrice.toNumber())));
         if (bidQty.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
-          console.log("BID LEVEL ",levels[x][1],": BID PRICE: ", bidPrice.toNumber(),", BID QTY: ",bidQty.toNumber(), "Portfolio Tot: ",this.contracts[this.quote].portfolioAvail);
+          console.log("BID LEVEL ",levels[x][1],": BID PRICE: ", bidPrice.toNumber(),", BID QTY: ",bidQty.toNumber(), "Portfolio Avail: ",this.contracts[this.quote].portfolioAvail);
           bidsEnroute += bidQty.toNumber();
           newOrderList.push(new NewOrder(0,bidQty,bidPrice,levels[x][1]));
         } else {
@@ -224,7 +224,7 @@ class MarketMakerBot extends AbstractBot {
         let askPrice = new BigNumber(initialAskPrice * (1+this.getSpread(levels[x][1]-1)));
         let askQty = new BigNumber(this.getQty(askPrice,1,levels[x][1],this.contracts[this.base].portfolioAvail - asksEnRoute));
         if (askQty.toNumber() * askPrice.toNumber() > this.minTradeAmnt){
-          console.log("ASK LEVEL ",levels[x][1],": ASK PRICE: ", askPrice.toNumber(),", ASK QTY: ",askQty.toNumber(), "Portfolio Tot: ",this.contracts[this.base].portfolioAvail);
+          console.log("ASK LEVEL ",levels[x][1],": ASK PRICE: ", askPrice.toNumber(),", ASK QTY: ",askQty.toNumber(), "Portfolio Avail: ",this.contracts[this.base].portfolioAvail);
           asksEnRoute += askQty.toNumber();
           newOrderList.push(new NewOrder(1,askQty,askPrice,levels[x][1]));
         } else {
@@ -311,7 +311,7 @@ class MarketMakerBot extends AbstractBot {
       // console.log("AVAILABLE FUNDS IN QUOTE BID: ",availableFunds, "AMOUNT: ",this.getLevelQty(level))
       if (this.getLevelQty(level) < availableFunds/price.toNumber() * .975){
         return this.getLevelQty(level);
-      } else if (availableFunds > this.minTradeAmnt * 1.025){
+      } else if (availableFunds/price.toNumber() *.975 > this.minTradeAmnt * 1.025){
         return availableFunds/price.toNumber() *.975;
       } else { return 0;}
     } else if (side === 1) {
