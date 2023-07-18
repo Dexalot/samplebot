@@ -503,9 +503,11 @@ abstract class AbstractBot {
             if (_log.event === "OrderStatusChanged") {
               if (_log.args.traderaddress === this.account && _log.args.pair === this.tradePairByte32) {
                 let level = 0;
+                let quantity = new BigNumber(0);
                 for (let i = 0; i < newOrders.length; i++){
                   if (newOrders[i].clientOrderId == _log.args.clientOrderId){
                     level = newOrders[i].level;
+                    quantity = newOrders[i].quantity;
                   }
                 }
                 await this.processOrders(
@@ -516,7 +518,7 @@ abstract class AbstractBot {
                   _log.args.clientOrderId,
                   _log.args.price,
                   _log.args.totalamount,
-                  _log.args.quantity,
+                  quantity,
                   _log.args.side,
                   _log.args.type1,
                   _log.args.type2,
@@ -693,7 +695,7 @@ abstract class AbstractBot {
                     _log.args.clientOrderId,
                     _log.args.price,
                     _log.args.totalamount,
-                    _log.args.quantity,
+                    quantityToSend,
                     _log.args.side,
                     _log.args.type1,
                     _log.args.type2,
@@ -947,7 +949,6 @@ abstract class AbstractBot {
         bal = await portfolio.getBalance(this.account, this.contracts[this.base].inByte32); //baseBal
         this.contracts[this.base].portfolioTot = utils.formatUnits(bal.total, tokenDetails.evmdecimals);
         this.contracts[this.base].portfolioAvail = utils.formatUnits(bal.available, tokenDetails.evmdecimals);
-
         //utils.printBalances(this.account, this.base, this.contracts[this.base]);
       }
 
@@ -1393,7 +1394,7 @@ abstract class AbstractBot {
                   _log.args.clientOrderId,
                   _log.args.price,
                   _log.args.totalamount,
-                  _log.args.quantity,
+                  quantityToSend,
                   _log.args.side,
                   _log.args.type1,
                   _log.args.type2,
@@ -1498,17 +1499,17 @@ abstract class AbstractBot {
     const promises: any = [];
     const orders: any = [];
     for (const order of this.orders.values()) {
-      orders.push(order);
-      promises.push(this.tradePair.getOrder(order.id));
+      if (order.id){
+        orders.push(order);
+        promises.push(this.tradePair.getOrder(order.id));
+      } else {
+        this.removeOrderFromMap(order);
+      }
     }
     try {
       const results = await Promise.all(promises);
       for (let i = 0; i < results.length; i++) {
-        if (!results[i]){
-          this.removeOrderFromMap(orders[i])
-        } else {
-          this.checkOrderInChain(orders[i], results[i]);
-        }
+        this.checkOrderInChain(orders[i], results[i]);
         // this.logger.debug(
         //   `${this.instanceName} checkOrdersInChain: ${orders[i].side === 0 ? "BUY" : "SELL"} ${orders[i].quantity.toString()} ${
         //     this.base
