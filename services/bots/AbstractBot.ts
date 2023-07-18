@@ -1410,12 +1410,16 @@ abstract class AbstractBot {
       } else {
         const reason = await this.getRevertReason(error);
         if (reason) {
-          this.logger.warn(
-            `${this.instanceName} Order Cancel/Replace error ${order.side === 0 ? "BUY" : "SELL"} ::: ${quantity.toFixed(
-              this.baseDisplayDecimals
-            )} @ ${price.toFixed(this.quoteDisplayDecimals)} Revert Reason ${reason}`
-          );
-          this.cancelReplaceOrder(order,price,quantity, tries +1);
+          if (reason == "T-OAEX-01"){
+            this.removeOrderFromMap(order);
+          } else {
+            this.logger.warn(
+              `${this.instanceName} Order Cancel/Replace error ${order.side === 0 ? "BUY" : "SELL"} ::: ${quantity.toFixed(
+                this.baseDisplayDecimals
+              )} @ ${price.toFixed(this.quoteDisplayDecimals)} Revert Reason ${reason}`
+            );
+            this.cancelReplaceOrder(order,price,quantity, tries +1);
+          }
         } else {
           this.cancelReplaceOrder(order,price,quantity, tries +1);
         }
@@ -1921,10 +1925,14 @@ abstract class AbstractBot {
   }
 
   async getBestOrders(){
+    try {
     const currentBestBid = await this.orderBooks.getTopOfTheBook(this.orderBookID);
     const currentBestAsk = await this.orderBooks.getTopOfTheBook(this.orderBookID1);
     this.currentBestBid = currentBestBid.price.toNumber()/1000000;
     this.currentBestAsk = currentBestAsk.price.toNumber()/1000000;
+    } catch (error) {
+      console.log("error getting best orders:");
+    }
     console.log(this.currentBestAsk);
     console.log(this.currentBestBid);
 
