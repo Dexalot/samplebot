@@ -1236,7 +1236,7 @@ abstract class AbstractBot {
       //this.logger.error(`${this.instanceName} Error during  CancelAll`, error);
       await this.correctNonce(this.contracts["SubNetProvider"]);
       setTimeout(()=>{
-        this.cancelOrderList();
+        this.cancelOrderList(orderIds);
       },2000);
     }
   }
