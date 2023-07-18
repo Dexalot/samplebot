@@ -725,7 +725,11 @@ abstract class AbstractBot {
           } Invalid Nonce `
         );
 
-        await this.correctNonce(this.contracts["SubNetProvider"]);
+        setTimeout(async()=>{
+          await this.correctNonce(this.contracts["SubNetProvider"]);
+          this.addOrder(side, qty, px, ordtype, ordType2, level, tries + 1);
+          
+        }, 2000)
       } else {
         const reason = await this.getRevertReason(error);
         if (reason) {
@@ -1234,8 +1238,8 @@ abstract class AbstractBot {
       }
     } catch (error) {
       //this.logger.error(`${this.instanceName} Error during  CancelAll`, error);
-      await this.correctNonce(this.contracts["SubNetProvider"]);
-      setTimeout(()=>{
+      setTimeout(async()=>{
+        await this.correctNonce(this.contracts["SubNetProvider"]);
         this.cancelOrderList(orderIds);
       },2000);
     }
@@ -1310,8 +1314,8 @@ abstract class AbstractBot {
             this.baseDisplayDecimals
           )} @ ${order.price.toFixed(this.quoteDisplayDecimals)} Invalid Nonce`
         );
-        await this.correctNonce(this.contracts["SubNetProvider"]);
-        setTimeout(()=>{
+        setTimeout(async()=>{
+          await this.correctNonce(this.contracts["SubNetProvider"]);
           this.cancelOrder(order, tries+1);
         }, 2000)
       } else {
@@ -1325,12 +1329,14 @@ abstract class AbstractBot {
           if (reason === "T-OAEX-01") {
             this.removeOrderFromMap(order);
           } else {
-            setTimeout(()=>{
+            setTimeout(async()=>{
+              await this.correctNonce(this.contracts["SubNetProvider"]);
               this.cancelOrder(order, tries+1);
             }, 2000)
           }
         } else {
-          setTimeout(()=>{
+          setTimeout(async()=>{
+            await this.correctNonce(this.contracts["SubNetProvider"]);
             this.cancelOrder(order, tries+1);
           }, 2000)
         }
@@ -1420,8 +1426,8 @@ abstract class AbstractBot {
             this.baseDisplayDecimals
           )} @ ${price.toFixed(this.quoteDisplayDecimals)} Invalid Nonce`
         );
-        await this.correctNonce(this.contracts["SubNetProvider"]);
-        setTimeout(()=>{
+        setTimeout(async()=>{
+          await this.correctNonce(this.contracts["SubNetProvider"]);
           this.cancelReplaceOrder(order,price,quantity, tries +1);
         },2000)
       } else {
@@ -1435,12 +1441,14 @@ abstract class AbstractBot {
                 this.baseDisplayDecimals
               )} @ ${price.toFixed(this.quoteDisplayDecimals)} Revert Reason ${reason}`
             );
-            setTimeout(()=>{
+            setTimeout(async()=>{
+              await this.correctNonce(this.contracts["SubNetProvider"]);
               this.cancelReplaceOrder(order,price,quantity, tries +1);
             },2000)
           }
         } else {
-          setTimeout(()=>{
+          setTimeout(async()=>{
+            await this.correctNonce(this.contracts["SubNetProvider"]);
             this.cancelReplaceOrder(order,price,quantity, tries +1);
           },2000)
         }
