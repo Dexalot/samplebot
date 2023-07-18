@@ -602,15 +602,15 @@ abstract class AbstractBot {
         const funds = this.fundsAvailable(side, quantity, marketPrice);
         if (side === 0) {
           if (!funds) {
-            this.logger.error(`${this.instanceName} Not enough funds to add BUY order`);
-            utils.printBalances(this.account, this.quote, this.contracts[this.quote]);
+            //this.logger.error(`${this.instanceName} Not enough funds to add BUY order`);
+            //utils.printBalances(this.account, this.quote, this.contracts[this.quote]);
             return;
           }
           this.checkWashTrade(side, price);
         } else {
           if (!funds) {
-            this.logger.error(`${this.instanceName} Not enough funds to add SELL order`);
-            utils.printBalances(this.account, this.base, this.contracts[this.base]);
+            //this.logger.error(`${this.instanceName} Not enough funds to add SELL order`);
+            //utils.printBalances(this.account, this.base, this.contracts[this.base]);
             return;
           }
           this.checkWashTrade(side, price);
@@ -733,12 +733,12 @@ abstract class AbstractBot {
             } Revert Reason ${reason}`
           );
         } else {
-          this.logger.error(
-            `${this.instanceName} addOrder error: ${side === 0 ? "BUY" : "SELL"}  ${quantity ? quantity.toString() : "undefined"} @ ${
-              price ? price.toString() : "undefined"
-            }`,
-            error
-          );
+          // this.logger.error(
+          //   `${this.instanceName} addOrder error: ${side === 0 ? "BUY" : "SELL"}  ${quantity ? quantity.toString() : "undefined"} @ ${
+          //     price ? price.toString() : "undefined"
+          //   }`,
+          //   error
+          // );
         }
       }
     }
@@ -862,7 +862,7 @@ abstract class AbstractBot {
       const expectedNonce = await provider.provider.getTransactionCount(this.account);
       provider.nonce = expectedNonce;
     } catch (error) {
-      this.logger.error(`${this.instanceName} 'Error during nonce correction`, error);
+      //this.logger.error(`${this.instanceName} 'Error during nonce correction`, error);
     }
   }
 
@@ -958,7 +958,7 @@ abstract class AbstractBot {
         //utils.printBalances(this.account, this.quote, this.contracts[this.quote]);
       }
     } catch (error) {
-      this.logger.error(`${this.instanceName} Error during  getBalance`, error);
+      //this.logger.error(`${this.instanceName} Error during  getBalance`, error);
     }
   }
 
@@ -1066,7 +1066,7 @@ abstract class AbstractBot {
         }
       }
     } catch (error) {
-      this.logger.error(`${this.instanceName} Error during  processOrders`, error);
+      // this.logger.error(`${this.instanceName} Error during  processOrders`, error);
     }
   }
 
@@ -1227,7 +1227,7 @@ abstract class AbstractBot {
         }
       }
     } catch (error) {
-      this.logger.error(`${this.instanceName} Error during  CancelAll`, error);
+      //this.logger.error(`${this.instanceName} Error during  CancelAll`, error);
       await this.correctNonce(this.contracts["SubNetProvider"]);
       this.cancelOrderList();
     }
@@ -1239,7 +1239,7 @@ abstract class AbstractBot {
         await this.cancelOrder(order);
       }
     } catch (error) {
-      this.logger.error(`${this.instanceName} Error during  cancelAllIndividually`, error);
+      //this.logger.error(`${this.instanceName} Error during  cancelAllIndividually`, error);
     }
   }
 
@@ -1312,12 +1312,12 @@ abstract class AbstractBot {
             this.removeOrderFromMap(order);
           }
         } else {
-          this.logger.error(
-            `${this.instanceName} Order Cancel error ${order.side === 0 ? "BUY" : "SELL"} ::: ${order.quantity.toFixed(
-              this.baseDisplayDecimals
-            )} @ ${order.price.toFixed(this.quoteDisplayDecimals)}`,
-            error
-          );
+          // this.logger.error(
+          //   `${this.instanceName} Order Cancel error ${order.side === 0 ? "BUY" : "SELL"} ::: ${order.quantity.toFixed(
+          //     this.baseDisplayDecimals
+          //   )} @ ${order.price.toFixed(this.quoteDisplayDecimals)}`,
+          //   error
+          // );
         }
       }
       return false;
@@ -1431,7 +1431,7 @@ abstract class AbstractBot {
         .data;
       return orders.rows;
     } catch (error: any) {
-      this.logger.error(`${this.instanceName} ${error}`);
+      // this.logger.error(`${this.instanceName} ${error}`);
     }
   }
 
