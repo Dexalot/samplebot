@@ -112,8 +112,8 @@ class MarketMakerBot extends AbstractBot {
         if (this.tradePairIdentifier == "AVAX/USDt"){
           await utils.sleep(500);
         }
-        await this.getBestOrders();
-        await this.correctNonce(this.contracts["SubNetProvider"]);
+        
+        await Promise.all([this.getBalances(),this.getBestOrders(),this.correctNonce(this.contracts["SubNetProvider"]),this.processOpenOrders()]);
         let startingBidPrice = this.marketPrice.toNumber() * (1-this.bidSpread);
         let startingAskPrice = this.marketPrice.toNumber() * (1+this.askSpread);
         const currentBestAsk = this.currentBestAsk ? this.currentBestAsk : undefined;
@@ -165,22 +165,23 @@ class MarketMakerBot extends AbstractBot {
         let bidsSorted = sortOrders(bids, "price", "descending");
         let asksSorted = sortOrders(asks, "price", "ascending");
 
-          // If there will be overlapping orders, wait for the orders of the side in which the price moved to be replaced first, then follow with the others.
-          if (currentBestAsk && startingBidPrice > currentBestAsk){
-            console.log("BEST ASK: ",currentBestAsk, "STARTING BID PRICE: ", startingBidPrice)
-            startingBidPrice = currentBestAsk - (currentBestAsk * this.orderLevelSpread);
+        // If there will be overlapping orders, wait for the orders of the side in which the price moved to be replaced first, then follow with the others.
+        if (currentBestAsk && startingBidPrice > currentBestAsk){
+          console.log("BEST ASK: ",currentBestAsk, "STARTING BID PRICE: ", startingBidPrice)
+          startingBidPrice = currentBestAsk - (currentBestAsk * this.orderLevelSpread);
 
-            await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
+          await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
 
-          } else if (currentBestBid && startingAskPrice < currentBestBid){
-            console.log("BEST BID: ",currentBestBid, "STARTING ASK PRICE: ", startingAskPrice)
-            startingAskPrice = currentBestBid + (currentBestBid * this.orderLevelSpread);
+        } else if (currentBestBid && startingAskPrice < currentBestBid){
+          console.log("BEST BID: ",currentBestBid, "STARTING ASK PRICE: ", startingAskPrice)
+          startingAskPrice = currentBestBid + (currentBestBid * this.orderLevelSpread);
 
-            await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
+          await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
 
-          } else {
-            await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
-          }
+        } else {
+          await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
+        }
+          
         this.lastMarketPrice = this.marketPrice;
         }
     } catch (error) {
@@ -190,7 +191,7 @@ class MarketMakerBot extends AbstractBot {
       //Update orders again after interval
       this.orderUpdater = setTimeout(async ()=>{
         if (this.status){
-          await Promise.all([this.getBalances(),this.processOpenOrders(),this.getNewMarketPrice()]);
+          await Promise.all([this.getNewMarketPrice()]);
           this.timer = 2000;
           this.updateOrders();
         }

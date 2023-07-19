@@ -1330,13 +1330,11 @@ abstract class AbstractBot {
             this.removeOrderFromMap(order);
           } else {
             setTimeout(async()=>{
-              await this.correctNonce(this.contracts["SubNetProvider"]);
               this.cancelOrder(order, tries+1);
             }, 2000)
           }
         } else {
           setTimeout(async()=>{
-            await this.correctNonce(this.contracts["SubNetProvider"]);
             this.cancelOrder(order, tries+1);
           }, 2000)
         }
@@ -1442,13 +1440,11 @@ abstract class AbstractBot {
               )} @ ${price.toFixed(this.quoteDisplayDecimals)} Revert Reason ${reason}`
             );
             setTimeout(async()=>{
-              await this.correctNonce(this.contracts["SubNetProvider"]);
               this.cancelReplaceOrder(order,price,quantity, tries +1);
             },2000)
           }
         } else {
           setTimeout(async()=>{
-            await this.correctNonce(this.contracts["SubNetProvider"]);
             this.cancelReplaceOrder(order,price,quantity, tries +1);
           },2000)
         }
