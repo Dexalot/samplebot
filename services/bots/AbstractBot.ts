@@ -620,7 +620,7 @@ abstract class AbstractBot {
 
         this.orderCount++;
 
-        //const gasest = await this.getAddOrderGasEstimate(clientOrderId, price, quantity, side, ordtype, ordType2);
+        const gasest = await this.getAddOrderGasEstimate(clientOrderId, price, quantity, side, ordtype, ordType2);
         // const tcost = await this.getTCost(gasest);
         // this.logger.debug (`${this.instanceName} New order gasEstimate: ${gasest} , tcost  ${tcost.toString()} `);
         // this.logger.debug(
@@ -631,7 +631,7 @@ abstract class AbstractBot {
         // this.logger.info (`${utils.parseUnits(price.toFixed(this.quoteDisplayDecimals), this.contracts[this.quote].tokenDetails.evmdecimals)}`);
         // this.logger.info (`${utils.parseUnits(quantity.toFixed(this.baseDisplayDecimals), this.contracts[this.base].tokenDetails.evmdecimals)}`);
 
-        const options = await this.getOptions(this.contracts["SubNetProvider"], BigNumberEthers.from(1000000));
+        const options = await this.getOptions(this.contracts["SubNetProvider"], gasest);
 
         const priceToSend = utils.parseUnits(price.toFixed(this.quoteDisplayDecimals), this.contracts[this.quote].tokenDetails.evmdecimals);
         const quantityToSend = utils.parseUnits(
@@ -818,16 +818,20 @@ abstract class AbstractBot {
     ordtype: number,
     ordType2: number
   ) {
-    return this.tradePair.estimateGas.addOrder(
-      this.account,
-      clientOrderId,
-      this.tradePairByte32,
-      utils.parseUnits(price.toFixed(this.quoteDisplayDecimals), this.contracts[this.quote].tokenDetails.evmdecimals),
-      utils.parseUnits(quantity.toFixed(this.baseDisplayDecimals), this.contracts[this.base].tokenDetails.evmdecimals),
-      side,
-      ordtype,
-      ordType2
-    );
+    try {
+      return this.tradePair.estimateGas.addOrder(
+        this.account,
+        clientOrderId,
+        this.tradePairByte32,
+        utils.parseUnits(price.toFixed(this.quoteDisplayDecimals), this.contracts[this.quote].tokenDetails.evmdecimals),
+        utils.parseUnits(quantity.toFixed(this.baseDisplayDecimals), this.contracts[this.base].tokenDetails.evmdecimals),
+        side,
+        ordtype,
+        ordType2
+      );
+    } catch {
+      BigNumberEthers.from(1000000)
+    }
   }
 
   async getAddOrderListGasEstimate(
@@ -837,19 +841,35 @@ abstract class AbstractBot {
     sides: number[],
     type2s: number[]
   ) {
-    return this.tradePair.estimateGas.addLimitOrderList(this.tradePairByte32, clientOrderIds, prices, quantities, sides, type2s);
+    try {
+      return this.tradePair.estimateGas.addLimitOrderList(this.tradePairByte32, clientOrderIds, prices, quantities, sides, type2s);
+    } catch {
+      return BigNumberEthers.from(1000000 * clientOrderIds.length);
+    }
   }
 
   async getCancelReplaceOrderGasEstimate(orderId: string, clientOrderId: string, price: BigNumberEthers, quantity: BigNumberEthers) {
-    return this.tradePair.estimateGas.cancelReplaceOrder(orderId, clientOrderId, price, quantity);
+    try {
+      return this.tradePair.estimateGas.cancelReplaceOrder(orderId, clientOrderId, price, quantity);
+    } catch {
+      return BigNumberEthers.from(1200000);
+    }
   }
 
   async getCancelOrderGasEstimate(order: any) {
-    return this.tradePair.estimateGas.cancelOrder(order.id);
+    try {
+      return this.tradePair.estimateGas.cancelOrder(order.id);
+    } catch {
+      return BigNumberEthers.from(1200000);
+    }
   }
 
   async getCancelAllOrdersGasEstimate(orderIds: string[]) {
-    return this.tradePair.estimateGas.cancelOrderList(orderIds);
+    try {
+      return this.tradePair.estimateGas.cancelOrderList(orderIds);
+    } catch {
+      return BigNumberEthers.from(1000000 * orderIds.length);
+    }
   }
 
   async getGasPriceInGwei(provider: any = this.contracts["SubNetProvider"]) {
@@ -1260,7 +1280,7 @@ abstract class AbstractBot {
       console.log("unable to cancel order:",order);
     }
     try {
-      // const gasest = await this.getCancelOrderGasEstimate(order);
+      const gasest = await this.getCancelOrderGasEstimate(order);
 
       // this.logger.debug(`${this.instanceName} Cancel order gasEstimate: ${gasest} `); // ${tcost}
       this.orderCount++;
@@ -1269,7 +1289,7 @@ abstract class AbstractBot {
           order.side === 0 ? "BUY" : "SELL"
         } ::: ${order.quantity.toString()} ${this.base} @ ${order.price.toString()} ${this.quote}`
       );
-      const options = await this.getOptions(this.contracts["SubNetProvider"], BigNumberEthers.from(1000000));
+      const options = await this.getOptions(this.contracts["SubNetProvider"], gasest);
       const tx = await this.tradePair.cancelOrder(order.id, options);
       //const tx = await this.race({ promise:oderCancel , count: this.orderCount} );
       //const orderLog = await this.race({ promise: tx.wait(), count: this.orderCount} );
