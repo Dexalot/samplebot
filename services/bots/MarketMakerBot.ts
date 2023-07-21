@@ -264,7 +264,7 @@ class MarketMakerBot extends AbstractBot {
       }
       if (order.id){
         let bidPrice = new BigNumber((startingBidPrice * (1-this.getSpread(i))).toFixed(this.quoteDisplayDecimals));
-        let bidQty = new BigNumber(this.getQty(bidPrice,0,i+1,parseFloat(this.contracts[this.quote].portfolioAvail) + (bidPrice.toNumber() * (order.quantity.toNumber() - order.quantityfilled.toNumber())) - bidsEnRoute));
+        let bidQty = new BigNumber(this.getQty(bidPrice,0,i+1,parseFloat(this.contracts[this.quote].portfolioAvail) + (bidPrice.toNumber() * (order.quantity.toNumber() - order.quantityfilled.toNumber())) * .99 - bidsEnRoute));
         if (bidQty.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
           if (bidsEnRoute > 0){
             bidsEnRoute += bidQty.toNumber() * bidPrice.toNumber() - ((order.quantity.toNumber() - order.quantityfilled.toNumber()) * bidPrice.toNumber());
@@ -297,7 +297,7 @@ class MarketMakerBot extends AbstractBot {
       }
       if (order.id){
         let askPrice = new BigNumber((startingAskPrice * (1+this.getSpread(i))).toFixed(this.baseDisplayDecimals));
-        let askQty = new BigNumber(this.getQty(askPrice,1,i+1,parseFloat(this.contracts[this.base].portfolioAvail) + (order.quantity.toNumber() - order.quantityfilled.toNumber()) - asksEnRoute));
+        let askQty = new BigNumber(this.getQty(askPrice,1,i+1,parseFloat(this.contracts[this.base].portfolioAvail) + (order.quantity.toNumber() - order.quantityfilled.toNumber()) * .99 - asksEnRoute));
         if (askQty.toNumber() * askPrice.toNumber() > this.minTradeAmnt){
           if (asksEnRoute > 0){
             asksEnRoute += (askQty.toNumber() - (order.quantity.toNumber() - order.quantityfilled.toNumber()));
