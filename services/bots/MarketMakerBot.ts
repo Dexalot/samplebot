@@ -266,7 +266,9 @@ class MarketMakerBot extends AbstractBot {
         let bidPrice = new BigNumber((startingBidPrice * (1-this.getSpread(i))).toFixed(this.quoteDisplayDecimals));
         let bidQty = new BigNumber(this.getQty(bidPrice,0,i+1,parseFloat(this.contracts[this.quote].portfolioAvail) + (bidPrice.toNumber() * (order.quantity.toNumber() - order.quantityfilled.toNumber())) - (bidsEnRoute * bidPrice.toNumber())));
         if (bidQty.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
-          bidsEnRoute += (bidQty.toNumber() - (order.quantity.toNumber() - order.quantityfilled.toNumber()));
+          if (bidsEnRoute > 0){
+            bidsEnRoute += (bidQty.toNumber() - (order.quantity.toNumber() - order.quantityfilled.toNumber()));
+          }
           console.log("REPLACE ORDER:",bidPrice,bidQty, i+1);
           this.cancelReplaceOrder(order,bidPrice,bidQty);
         } else {
@@ -274,7 +276,9 @@ class MarketMakerBot extends AbstractBot {
           this.cancelOrder(order);
         }
       } else {
-        this.placeInitialOrders([[0,i+1]]);
+        setTimeout(()=>{
+          this.placeInitialOrders([[0,i+1]]);
+        },4000)
       }
     }
   }
@@ -295,7 +299,9 @@ class MarketMakerBot extends AbstractBot {
         let askPrice = new BigNumber((startingAskPrice * (1+this.getSpread(i))).toFixed(this.baseDisplayDecimals));
         let askQty = new BigNumber(this.getQty(askPrice,1,i+1,parseFloat(this.contracts[this.base].portfolioAvail) + (order.quantity.toNumber() - order.quantityfilled.toNumber()) - asksEnRoute));
         if (askQty.toNumber() * askPrice.toNumber() > this.minTradeAmnt){
-          asksEnRoute += (askQty.toNumber() - (order.quantity.toNumber() - order.quantityfilled.toNumber()));
+          if (asksEnRoute > 0){
+            asksEnRoute += (askQty.toNumber() - (order.quantity.toNumber() - order.quantityfilled.toNumber()));
+          }
           console.log("REPLACE ORDER:",askPrice,askQty, i+1);
           this.cancelReplaceOrder(order,askPrice,askQty);
         } else {
@@ -303,7 +309,9 @@ class MarketMakerBot extends AbstractBot {
           this.cancelOrder(order);
         }
       } else {
-        this.placeInitialOrders([[1,i+1]]);
+        setTimeout(()=>{
+          this.placeInitialOrders([[1,i+1]]);
+        },4000)
       }
     }
   }
@@ -316,14 +324,14 @@ class MarketMakerBot extends AbstractBot {
       if (this.getLevelQty(level) < availableFunds/price.toNumber() * 0.99){
         return this.getLevelQty(level);
       } else if (availableFunds > this.minTradeAmnt * 2){
-        return (availableFunds/price.toNumber()) *.95;
+        return (availableFunds/price.toNumber()) *.99;
       } else { return 0;}
     } else if (side === 1) {
       console.log("AVAILABLE FUNDS ASK: ",availableFunds, "AMOUNT: ",this.getLevelQty(level))
       if (this.getLevelQty(level) < availableFunds * .99){
           return this.getLevelQty(level);
       } else if (availableFunds * price.toNumber() > this.minTradeAmnt * 2){
-        return availableFunds * .95;
+        return availableFunds * .99;
       } else {return 0;}
     } else { 
       return 0; // function declaration requires I return a number
