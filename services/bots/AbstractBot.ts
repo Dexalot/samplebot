@@ -789,10 +789,10 @@ abstract class AbstractBot {
     return reason;
   }
 
-  async getOptions(provider: any = this.contracts["SubNetProvider"], gasEstimate: BigNumberEthers = BigNumberEthers.from(700000)) {
+  async getOptions(provider: any = this.contracts["SubNetProvider"], gasEstimate: BigNumberEthers = BigNumberEthers.from(1000000)) {
     const gasPx = await this.getGasPrice(provider);
-    const maxFeePerGas = Math.ceil(gasPx.mul(115).div(100).toNumber());
-    const gasLimit = Math.min(gasEstimate.mul(115).div(100).toNumber(), 30000000); // Block Gas Limit 30M
+    const maxFeePerGas = Math.ceil(gasPx.mul(120).div(100).toNumber());
+    const gasLimit = Math.min(gasEstimate.mul(120).div(100).toNumber(), 30000000); // Block Gas Limit 30M
     const optionsWithNonce = { gasLimit, maxFeePerGas, maxPriorityFeePerGas: 1, nonce: 0 };
 
     optionsWithNonce.nonce = provider.nonce++;
@@ -882,7 +882,11 @@ abstract class AbstractBot {
     if (getConfig("NODE_ENV_SETTINGS") === "localdb-hh" || getConfig("NODE_ENV_SETTINGS") === "dev1-hh") {
       gasPx = BigNumberEthers.from(25000000000);
     } else {
-      gasPx = await provider.provider.getGasPrice();
+      try {
+        gasPx = await provider.provider.getGasPrice();
+      } catch {
+        gasPx = BigNumberEthers.from(25000000000);
+      }
     }
     return gasPx;
   }
