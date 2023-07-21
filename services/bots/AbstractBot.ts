@@ -69,6 +69,7 @@ abstract class AbstractBot {
   protected orderBookID1: any;
   protected currentBestBid: any;
   protected currentBestAsk: any;
+  protected counter: any;
 
   constructor(botId: number, pairStr: string, privateKey: string, ratelimit_token?: string) {
     this.logger = getLogger("Bot");
@@ -82,6 +83,7 @@ abstract class AbstractBot {
     this.orders = new Map();
     this.orderbook = new OrderBook();
     this.ratelimit_token = ratelimit_token;
+    this.counter = 0;
 
     (axios.defaults.headers! as unknown as Record<string, any>).common["Origin"] = getConfig("ORIGIN_LINK");
     (axios.defaults.headers! as unknown as Record<string, any>).common["User-Agent"] =
@@ -438,7 +440,8 @@ abstract class AbstractBot {
     const blocknumber = (await this.contracts["SubNetProvider"].provider.getBlockNumber()) || 0;
 
     for (let i = 0; i < newOrders.length; i++){
-      const clientOrderId = await this.getClientOrderId(blocknumber, i);
+      this.counter ++
+      const clientOrderId = await this.getClientOrderId(blocknumber, this.counter);
       newOrders[i].clientOrderId = clientOrderId;
       const priceToSend = utils.parseUnits(
         newOrders[i].price.toFixed(this.quoteDisplayDecimals),
@@ -574,11 +577,8 @@ abstract class AbstractBot {
     }
 
       //get unique counter to generate clientOrderId
-      let counter = level;
-      if (level == 1){
-        counter = counter + 100;
-      }
-      const clientOrderId = await this.getClientOrderId(0,counter);
+      this.counter ++
+      const clientOrderId = await this.getClientOrderId(0,this.counter);
 
     let price = px;
     let quantity = qty;
@@ -1385,11 +1385,8 @@ abstract class AbstractBot {
         this.contracts[this.base].tokenDetails.evmdecimals
       );
       //get unique counter to generate clientOrderId
-      let counter = order.level;
-      if (order.side == 1){
-        counter = counter + 100;
-      }
-      const clientOrderId = await this.getClientOrderId(0,counter);
+      this.counter ++
+      const clientOrderId = await this.getClientOrderId(0,this.counter);
       // Not using the gasEstimate because it fails with P-AFNE1 when funds are tight but the actual C/R doesn't
 
       console.log("CANCEL REPLACE: New clientOrderid: ", clientOrderId," PRICE:", price.toNumber(), " QTY: ", quantity.toNumber());

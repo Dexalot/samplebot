@@ -214,7 +214,7 @@ class MarketMakerBot extends AbstractBot {
     let asksEnRoute = 0;
     for (let x = 0; x < levels.length; x++){
       if (levels[x][0] == 0){
-        let bidPrice = new BigNumber(initialBidPrice * (1-this.getSpread(levels[x][1]-1)));
+        let bidPrice = new BigNumber((initialBidPrice * (1-this.getSpread(levels[x][1]-1))).toFixed(this.quoteDisplayDecimals));
         let bidQty = new BigNumber(this.getQty(bidPrice,0,levels[x][1],parseFloat(this.contracts[this.quote].portfolioAvail) - (bidsEnroute * bidPrice.toNumber())));
         if (bidQty.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
           console.log("BID LEVEL ",levels[x][1],": BID PRICE: ", bidPrice.toNumber(),", BID QTY: ",bidQty.toNumber(), "Portfolio Avail: ",this.contracts[this.quote].portfolioAvail);
@@ -225,7 +225,7 @@ class MarketMakerBot extends AbstractBot {
         }
       } else {
       //--------------- SET ASKS --------------- //
-        let askPrice = new BigNumber(initialAskPrice * (1+this.getSpread(levels[x][1]-1)));
+        let askPrice = new BigNumber((initialAskPrice * (1+this.getSpread(levels[x][1]-1))).toFixed(this.baseDisplayDecimals));
         let askQty = new BigNumber(this.getQty(askPrice,1,levels[x][1],parseFloat(this.contracts[this.base].portfolioAvail) - asksEnRoute));
         if (askQty.toNumber() * askPrice.toNumber() > this.minTradeAmnt){
           console.log("ASK LEVEL ",levels[x][1],": ASK PRICE: ", askPrice.toNumber(),", ASK QTY: ",askQty.toNumber(), "Portfolio Avail: ",this.contracts[this.base].portfolioAvail);
@@ -263,7 +263,7 @@ class MarketMakerBot extends AbstractBot {
         }
       }
       if (order.id){
-        let bidPrice = new BigNumber(startingBidPrice * (1-this.getSpread(i)));
+        let bidPrice = new BigNumber((startingBidPrice * (1-this.getSpread(i))).toFixed(this.quoteDisplayDecimals));
         let bidQty = new BigNumber(this.getQty(bidPrice,0,i+1,parseFloat(this.contracts[this.quote].portfolioAvail) + (bidPrice.toNumber() * (order.quantity.toNumber() - order.quantityfilled.toNumber())) - (bidsEnRoute * bidPrice.toNumber())));
         if (bidQty.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
           bidsEnRoute += (bidQty.toNumber() - (order.quantity.toNumber() - order.quantityfilled.toNumber()));
@@ -292,7 +292,7 @@ class MarketMakerBot extends AbstractBot {
         }
       }
       if (order.id){
-        let askPrice = new BigNumber(startingAskPrice * (1+this.getSpread(i)));
+        let askPrice = new BigNumber((startingAskPrice * (1+this.getSpread(i))).toFixed(this.baseDisplayDecimals));
         let askQty = new BigNumber(this.getQty(askPrice,1,i+1,parseFloat(this.contracts[this.base].portfolioAvail) + (order.quantity.toNumber() - order.quantityfilled.toNumber()) - asksEnRoute));
         if (askQty.toNumber() * askPrice.toNumber() > this.minTradeAmnt){
           asksEnRoute += (askQty.toNumber() - (order.quantity.toNumber() - order.quantityfilled.toNumber()));
@@ -313,17 +313,17 @@ class MarketMakerBot extends AbstractBot {
   getQty(price: BigNumber, side: number, level: number, availableFunds: number): number {
     if (side === 0){
       console.log("AVAILABLE FUNDS IN QUOTE BID: ",availableFunds, "AMOUNT: ",this.getLevelQty(level))
-      if (this.getLevelQty(level) < availableFunds/price.toNumber() * .975){
+      if (this.getLevelQty(level) < availableFunds/price.toNumber() * 0.99){
         return this.getLevelQty(level);
       } else if (availableFunds > this.minTradeAmnt * 2){
-        return availableFunds/price.toNumber() *.995;
+        return (availableFunds/price.toNumber()) *.95;
       } else { return 0;}
     } else if (side === 1) {
       console.log("AVAILABLE FUNDS ASK: ",availableFunds, "AMOUNT: ",this.getLevelQty(level))
-      if (this.getLevelQty(level) < availableFunds * .995){
+      if (this.getLevelQty(level) < availableFunds * .99){
           return this.getLevelQty(level);
       } else if (availableFunds * price.toNumber() > this.minTradeAmnt * 2){
-        return availableFunds * .995;
+        return availableFunds * .95;
       } else {return 0;}
     } else { 
       return 0; // function declaration requires I return a number
