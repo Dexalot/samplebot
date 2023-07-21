@@ -201,7 +201,7 @@ class MarketMakerBot extends AbstractBot {
 
   // Takes in an array of arrays. The first number of each subarray is the side, the second is the level.
   // For each subarray passed in, it creates a new order and adds it to newOrderList. At the end it calls addLimitOrderList with the newOrderList
-  async placeInitialOrders(levels: number[][], availableQuote: number = this.contracts[this.quote].portfolioAvail, availableBase: number = this.contracts[this.base].portfolioAvail){
+  async placeInitialOrders(levels: number[][], availableQuote: number = this.contracts[this.quote].portfolioTot, availableBase: number = this.contracts[this.base].portfolioTot){
     console.log("PLACING INITAL ORDERS: ",levels);
 
     let initialBidPrice = this.marketPrice.toNumber() * (1-this.bidSpread);
@@ -253,9 +253,6 @@ class MarketMakerBot extends AbstractBot {
     console.log("REPLACE BIDS: ",bidsSorted.length);
     let availableQuote = parseFloat(this.contracts[this.quote].portfolioTot);
     for (let i = 0; i < this.orderLevels; i ++){
-      if (availableQuote < this.minTradeAmnt * 2){
-        break;
-      }
       let order = {id:null, status:null, quantity:new BigNumber(0),quantityfilled:new BigNumber(0), level:0, price: new BigNumber(0)};
       for (let j = 0; j < bidsSorted.length; j++){
         if (bidsSorted[j].level == i+1){
