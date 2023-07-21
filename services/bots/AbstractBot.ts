@@ -427,7 +427,7 @@ abstract class AbstractBot {
 
   async addLimitOrderList(newOrders: NewOrder[], tries: number = 0) {
 
-    if(tries > 2){
+    if(tries > 1){
       this.cleanUpAndExit();
       return
     }
@@ -573,7 +573,7 @@ abstract class AbstractBot {
 
   async addOrder(side: number, qty: BigNumber | undefined, px: BigNumber | undefined, ordtype = 1, ordType2 = 3, level: number, tries: number = 0) {
     // LIMIT ORDER  & GTC)
-    if (!this.status || tries>2) {
+    if (!this.status || tries>1) {
       return;
     }
 
@@ -1372,7 +1372,7 @@ abstract class AbstractBot {
     if (!this.status) {
       return;
     }
-    if (tries > 2){
+    if (tries > 1){
       this.cancelOrder(order);
       return
     }
