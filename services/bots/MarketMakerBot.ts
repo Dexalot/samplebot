@@ -215,10 +215,10 @@ class MarketMakerBot extends AbstractBot {
     for (let x = 0; x < levels.length; x++){
       if (levels[x][0] == 0){
         let bidPrice = new BigNumber((initialBidPrice * (1-this.getSpread(levels[x][1]-1))).toFixed(this.quoteDisplayDecimals));
-        let bidQty = new BigNumber(this.getQty(bidPrice,0,levels[x][1],parseFloat(this.contracts[this.quote].portfolioAvail) - (bidsEnroute * bidPrice.toNumber())));
+        let bidQty = new BigNumber(this.getQty(bidPrice,0,levels[x][1],parseFloat(this.contracts[this.quote].portfolioAvail) - bidsEnroute));
         if (bidQty.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
           console.log("BID LEVEL ",levels[x][1],": BID PRICE: ", bidPrice.toNumber(),", BID QTY: ",bidQty.toNumber(), "Portfolio Avail: ",this.contracts[this.quote].portfolioAvail);
-          bidsEnroute += bidQty.toNumber();
+          bidsEnroute += bidQty.toNumber() * bidPrice.toNumber();
           newOrderList.push(new NewOrder(0,bidQty,bidPrice,levels[x][1]));
         } else {
           console.log("NOT ENOUGH FUNDS TO PLACE INITIAL BID: ", levels[x][1])
@@ -264,10 +264,10 @@ class MarketMakerBot extends AbstractBot {
       }
       if (order.id){
         let bidPrice = new BigNumber((startingBidPrice * (1-this.getSpread(i))).toFixed(this.quoteDisplayDecimals));
-        let bidQty = new BigNumber(this.getQty(bidPrice,0,i+1,parseFloat(this.contracts[this.quote].portfolioAvail) + (bidPrice.toNumber() * (order.quantity.toNumber() - order.quantityfilled.toNumber())) - (bidsEnRoute * bidPrice.toNumber())));
+        let bidQty = new BigNumber(this.getQty(bidPrice,0,i+1,parseFloat(this.contracts[this.quote].portfolioAvail) + (bidPrice.toNumber() * (order.quantity.toNumber() - order.quantityfilled.toNumber())) - bidsEnRoute));
         if (bidQty.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
           if (bidsEnRoute > 0){
-            bidsEnRoute += (bidQty.toNumber() - (order.quantity.toNumber() - order.quantityfilled.toNumber()));
+            bidsEnRoute += bidQty.toNumber() * bidPrice.toNumber() - ((order.quantity.toNumber() - order.quantityfilled.toNumber()) * bidPrice.toNumber());
           }
           console.log("REPLACE ORDER:",bidPrice,bidQty, i+1);
           this.cancelReplaceOrder(order,bidPrice,bidQty);
