@@ -324,14 +324,14 @@ class MarketMakerBot extends AbstractBot {
       if (this.getLevelQty(level) < availableFunds/price.toNumber() * 0.99){
         return this.getLevelQty(level);
       } else if (availableFunds > this.minTradeAmnt * 2){
-        return availableFunds/price.toNumber() * .975;
+        return availableFunds/price.toNumber() * .99;
       } else { return 0;}
     } else if (side === 1) {
       console.log("AVAILABLE FUNDS ASK: ",availableFunds, "AMOUNT: ",this.getLevelQty(level))
       if (this.getLevelQty(level) < availableFunds * .99){
           return this.getLevelQty(level);
       } else if (availableFunds * price.toNumber() > this.minTradeAmnt * 2){
-        return availableFunds * .975;
+        return availableFunds * .99;
       } else {return 0;}
     } else { 
       return 0; // function declaration requires I return a number
