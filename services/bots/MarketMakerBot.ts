@@ -275,8 +275,13 @@ class MarketMakerBot extends AbstractBot {
         //set aside funds to create new orders
         let bidPrice = new BigNumber((startingBidPrice * (1-this.getSpread(i))).toFixed(this.quoteDisplayDecimals));
         let amount = this.getLevelQty(i+1) * bidPrice.toNumber() * 1.01;
-        availableQuote -= amount
-        this.placeInitialOrders([[0,i+1]],amount,);
+        if (amount < availableQuote){
+          availableQuote -= amount
+          this.placeInitialOrders([[0,i+1]],amount,);
+        } else {
+          this.placeInitialOrders([[0,i+1]],availableQuote,);
+          availableQuote = 0;
+        }
       }
     }
   }
@@ -305,8 +310,13 @@ class MarketMakerBot extends AbstractBot {
         }
       } else {
         let amount = this.getLevelQty(i+1) * 1.01;
-        this.placeInitialOrders([[1,i+1]],undefined,amount);
-        availableBase -= amount;
+        if (amount < availableBase){
+          this.placeInitialOrders([[1,i+1]],undefined,amount);
+          availableBase -= amount;
+        } else {
+          this.placeInitialOrders([[1,i+1]],undefined,availableBase);
+          availableBase = 0;
+        }
       }
     }
   }
