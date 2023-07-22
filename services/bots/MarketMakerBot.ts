@@ -264,7 +264,7 @@ class MarketMakerBot extends AbstractBot {
         let bidPrice = new BigNumber((startingBidPrice * (1-this.getSpread(i))).toFixed(this.quoteDisplayDecimals));
         let bidQty = new BigNumber(this.getQty(bidPrice,0,i+1,availableQuote));
         if (bidQty.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
-          availableQuote -= bidQty.toNumber() * bidPrice.toNumber();
+          availableQuote -= bidQty.toNumber() * startingBidPrice; // Using startingBidPrice here so that slightly less base asset is used than is available.
           console.log("REPLACE ORDER:",bidPrice,bidQty, i+1);
           this.cancelReplaceOrder(order,bidPrice,bidQty);
         } else {
@@ -273,8 +273,7 @@ class MarketMakerBot extends AbstractBot {
         }
       } else {
         //set aside funds to create new orders
-        let bidPrice = new BigNumber((startingBidPrice * (1-this.getSpread(i))).toFixed(this.quoteDisplayDecimals));
-        let amount = this.getLevelQty(i+1) * bidPrice.toNumber() * 1.01;
+        let amount = this.getLevelQty(i+1) * startingBidPrice;
         if (amount < availableQuote){
           availableQuote -= amount
           this.placeInitialOrders([[0,i+1]],amount,);
@@ -329,14 +328,14 @@ class MarketMakerBot extends AbstractBot {
       if (this.getLevelQty(level) < availableFunds/price.toNumber() * 0.99){
         return this.getLevelQty(level);
       } else if (availableFunds > this.minTradeAmnt * 2){
-        return availableFunds/price.toNumber() * .99;
+        return availableFunds/price.toNumber() * .9999;
       } else { return 0;}
     } else if (side === 1) {
       console.log("AVAILABLE FUNDS ASK: ",availableFunds, "AMOUNT: ",this.getLevelQty(level))
       if (this.getLevelQty(level) < availableFunds * .99){
           return this.getLevelQty(level);
       } else if (availableFunds * price.toNumber() > this.minTradeAmnt * 2){
-        return availableFunds * .99;
+        return availableFunds * .9999;
       } else {return 0;}
     } else { 
       return 0; // function declaration requires I return a number
