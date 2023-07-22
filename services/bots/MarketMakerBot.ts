@@ -267,7 +267,7 @@ class MarketMakerBot extends AbstractBot {
         let availableFunds = quoteAvail + amountOnOrder;
         let bidQty = new BigNumber(this.getQty(bidPrice,0,i+1,availableFunds));
         let amountToPlace = bidQty;
-        if (availableFunds < amountToPlace.toNumber() * bidPrice.toNumber()){
+        if (availableFunds/bidPrice.toNumber() < amountToPlace.toNumber()){
           amountToPlace = new BigNumber((availableFunds/bidPrice.toNumber())*.999);
         }
         if (amountToPlace.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
@@ -344,14 +344,14 @@ class MarketMakerBot extends AbstractBot {
   getQty(price: BigNumber, side: number, level: number, availableFunds: number): number {
     if (side === 0){
       console.log("AVAILABLE FUNDS IN QUOTE BID: ",availableFunds, "AMOUNT: ",this.getLevelQty(level))
-      if (this.getLevelQty(level) < availableFunds/price.toNumber() * 0.99){
+      if (this.getLevelQty(level) < availableFunds/price.toNumber()){
         return this.getLevelQty(level);
       } else if (availableFunds > this.minTradeAmnt * 2){
         return availableFunds/price.toNumber() * .999;
       } else { return 0;}
     } else if (side === 1) {
       console.log("AVAILABLE FUNDS ASK: ",availableFunds, "AMOUNT: ",this.getLevelQty(level))
-      if (this.getLevelQty(level) < availableFunds * .99){
+      if (this.getLevelQty(level) < availableFunds){
           return this.getLevelQty(level);
       } else if (availableFunds * price.toNumber() > this.minTradeAmnt * 2){
         return availableFunds * .999;
