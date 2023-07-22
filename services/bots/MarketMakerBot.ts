@@ -265,7 +265,7 @@ class MarketMakerBot extends AbstractBot {
         let bidPrice = new BigNumber((startingBidPrice * (1-this.getSpread(i))).toFixed(this.quoteDisplayDecimals));
         let amountOnOrder = (order.quantity.toNumber()-order.quantityfilled.toNumber())*order.price.toNumber();
         let availableFunds = quoteAvail + amountOnOrder;
-        let bidQty = new BigNumber(this.getQty(bidPrice,0,i+1,quoteTot));
+        let bidQty = new BigNumber(this.getQty(bidPrice,0,i+1,availableFunds));
         let amountToPlace = bidQty;
         if (availableFunds < amountToPlace.toNumber() * bidPrice.toNumber()){
           amountToPlace = new BigNumber((availableFunds/bidPrice.toNumber())*.999);
