@@ -268,7 +268,7 @@ class MarketMakerBot extends AbstractBot {
         let bidQty = new BigNumber(this.getQty(bidPrice,0,i+1,quoteTot));
         let amountToPlace = bidQty;
         if (availableFunds < amountToPlace.toNumber() * bidPrice.toNumber()){
-          amountToPlace = new BigNumber((availableFunds/bidPrice.toNumber()));
+          amountToPlace = new BigNumber((availableFunds/bidPrice.toNumber())*.999);
         }
         if (amountToPlace.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
           quoteTot -= bidQty.toNumber() * bidPrice.toNumber(); // How much we would ideally place. This will take some off of the later orders to refill this one on the next update
