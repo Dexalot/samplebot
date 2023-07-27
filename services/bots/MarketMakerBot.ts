@@ -252,7 +252,7 @@ class MarketMakerBot extends AbstractBot {
   async replaceBids(bidsSorted: any, startingBidPrice: number){
     console.log("REPLACE BIDS: ",bidsSorted.length);
     let quoteAvail = parseFloat(this.contracts[this.quote].portfolioAvail);
-    for (let i = this.orderLevels.length - 1; i >= 0; i --){
+    for (let i = this.orderLevels - 1; i >= 0; i --){
       let order = {id:null, status:null, quantity:new BigNumber(0),quantityfilled:new BigNumber(0), level:0, price: new BigNumber(0)};
       for (let j = 0; j < bidsSorted.length; j++){
         if (bidsSorted[j].level == i+1){
@@ -295,7 +295,7 @@ class MarketMakerBot extends AbstractBot {
     console.log("REPLACE ASKS: ",asksSorted.length);
     let baseAvail = parseFloat(this.contracts[this.base].portfolioAvail);
 
-    for (let i = this.orderLevels.length -1; i >= 0; i --){
+    for (let i = this.orderLevels -1; i >= 0; i --){
       let order = {id:null, status:null, quantity:new BigNumber(0),quantityfilled:new BigNumber(0), level:0};
       for (let j = 0; j < asksSorted.length; j++){
         if (asksSorted[j].level == i+1){
