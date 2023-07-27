@@ -210,7 +210,7 @@ class MarketMakerBot extends AbstractBot {
     initialAskPrice = this.currentBestBid && this.currentBestBid > initialAskPrice ? this.currentBestBid * (1+this.askSpread) : initialAskPrice;
     let newOrderList : NewOrder[] = [];
     // --------------- SET BIDS --------------- //
-    for (let x = levels.length-1; x >= 0; x--){
+    for (let x = 0; x < levels.length; x++){
       if (levels[x][0] == 0){
         let bidPrice = new BigNumber((initialBidPrice * (1-this.getSpread(levels[x][1]-1))).toFixed(this.quoteDisplayDecimals));
         let bidQty = new BigNumber(this.getQty(bidPrice,0,levels[x][1],availableQuote));
@@ -230,14 +230,14 @@ class MarketMakerBot extends AbstractBot {
           console.log("ASK LEVEL ",levels[x][1],": ASK PRICE: ", askPrice.toNumber(),", ASK QTY: ",askQty.toNumber(), "Portfolio Avail: ",availableBase);
           newOrderList.push(new NewOrder(1,askQty,askPrice,levels[x][1]));
         } else {
-          console.log("NOT ENOUGH FUNDS TO PLACE INITIAL ASK LEVEL: ", levels[x][1])
+          console.log("NOT ENOUGH FUNDS TO PLACE INITIAL ASK: ", levels[x][1])
         }
       }
     }
 
   //   // --------------- EXECUTE ORDERS --------------- //
     if (newOrderList.length == 0){
-      console.log("NewOrderList empty");
+      console.log("ERROR - NewOrderList empty");
     } else if (newOrderList.length == 1){
       if (this.status){
         this.addOrder(newOrderList[0].side,newOrderList[0].quantity,newOrderList[0].price,1,3,newOrderList[0].level);
@@ -252,7 +252,7 @@ class MarketMakerBot extends AbstractBot {
   async replaceBids(bidsSorted: any, startingBidPrice: number){
     console.log("REPLACE BIDS: ",bidsSorted.length);
     let quoteAvail = parseFloat(this.contracts[this.quote].portfolioAvail);
-    for (let i = this.orderLevels - 1; i >= 0; i --){
+    for (let i = 0; i < this.orderLevels; i ++){
       let order = {id:null, status:null, quantity:new BigNumber(0),quantityfilled:new BigNumber(0), level:0, price: new BigNumber(0)};
       for (let j = 0; j < bidsSorted.length; j++){
         if (bidsSorted[j].level == i+1){
@@ -295,7 +295,7 @@ class MarketMakerBot extends AbstractBot {
     console.log("REPLACE ASKS: ",asksSorted.length);
     let baseAvail = parseFloat(this.contracts[this.base].portfolioAvail);
 
-    for (let i = this.orderLevels -1; i >= 0; i --){
+    for (let i = 0; i < this.orderLevels; i ++){
       let order = {id:null, status:null, quantity:new BigNumber(0),quantityfilled:new BigNumber(0), level:0};
       for (let j = 0; j < asksSorted.length; j++){
         if (asksSorted[j].level == i+1){
