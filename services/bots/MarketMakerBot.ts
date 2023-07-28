@@ -20,8 +20,7 @@ class MarketMakerBot extends AbstractBot {
   protected refreshOrderTolerance: any;
   protected flatAmount: any;
   protected timer: any;
-  // protected bestAsk: any;
-  // protected bestBid: any;
+  protected lastBaseUsd: any;
 
   constructor(botId: number, pairStr: string, privateKey: string) {
     super(botId, pairStr, privateKey);
@@ -368,12 +367,24 @@ class MarketMakerBot extends AbstractBot {
     try {
       let response = await axios.get('http://localhost:3000/prices');
       let prices = response.data;
-
+      
       this.baseUsd = prices[this.base+'-USD']; 
       this.quoteUsd = prices[this.quote+'-USD']; 
 
-      this.marketPrice = new BigNumber(this.baseUsd/this.quoteUsd);
-      console.log("new market Price:",this.marketPrice.toNumber());
+      if (this.base == "sAVAX"){
+        let totalPooledAvax = await this.savaxContract.totalPooledAvax();
+        let totalSupply = await this.savaxContract.totalSupply();
+        totalPooledAvax = new BigNumber(totalPooledAvax.toString());
+        totalSupply = new BigNumber(totalSupply.toString());
+
+        this.baseUsd = totalPooledAvax.shiftedBy(-18).div(totalSupply.shiftedBy(-18)).toNumber() * this.quoteUsd * .9992;
+      }
+      if (this.baseUsd && this.quoteUsd){
+        this.marketPrice = new BigNumber(this.baseUsd/this.quoteUsd);
+        console.log("new market Price:",this.marketPrice.toNumber());
+      } else {
+        throw 'trouble getting base or quote prices'
+      }
     } catch (error: any) {
       this.logger.error(`${this.instanceName} Error during getNewMarketPrice`, error);
     }

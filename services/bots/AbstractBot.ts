@@ -14,6 +14,7 @@ import OrderBook from "./orderbook";
 import NewOrder from "./classes";
 
 import ERC20ABI from "../../artifacts/contracts/ERC20.json";
+import savaxABI from "../../artifacts/contracts/savaxABI.json";
 import OrderBookRecordRaw from "../../models/orderBookRecordRaw";
 import OrderBookRaw from "../../models/orderBookRaw";
 const apiUrl = getConfig("API_URL") + "privapi/trading/";
@@ -67,6 +68,7 @@ abstract class AbstractBot {
   protected orderBooks: any;
   protected orderBookID: any;
   protected orderBookID1: any;
+  protected savaxContract: any;
   protected currentBestBid: any;
   protected currentBestAsk: any;
   protected counter: any;
@@ -260,6 +262,11 @@ abstract class AbstractBot {
         this.orderBookID = await this.tradePair.getBookId(this.tradePairByte32,0);
         this.orderBookID1 = await this.tradePair.getBookId(this.tradePairByte32,1);
         await this.getBestOrders();
+
+        if (this.base == "sAVAX"){
+          this.savaxContract = new ethers.Contract("0x2b2C81e08f1Af8835a78Bb2A90AE924ACE0eA4bE",savaxABI,this.contracts["MainnetWallet"]);
+        }
+        
 
         this.minTradeAmnt = this.pairObject.mintrade_amnt;
         this.maxTradeAmnt = this.pairObject.maxtrade_amnt;
