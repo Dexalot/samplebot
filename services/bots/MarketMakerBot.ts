@@ -210,7 +210,6 @@ class MarketMakerBot extends AbstractBot {
     initialBidPrice = this.currentBestAsk && this.currentBestAsk < initialBidPrice ? this.currentBestAsk - this.getIncrement() : initialBidPrice;
     initialAskPrice = this.currentBestBid && this.currentBestBid > initialAskPrice ? this.currentBestBid + this.getIncrement() : initialAskPrice;
 
-    console.log(initialAskPrice,initialBidPrice,this.currentBestAsk, this.currentBestBid, 'slkdfjsld');
     let newOrderList : NewOrder[] = [];
     // --------------- SET BIDS --------------- //
     for (let x = 0; x < levels.length; x++){
