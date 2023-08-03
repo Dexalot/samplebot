@@ -1,8 +1,10 @@
 import MarketMakerBot from "./MarketMakerBot";
-const Bot:any = MarketMakerBot;
+import TakerBot from "./TakerBot";
+const Bot:any = {marketMaker: MarketMakerBot, taker:TakerBot};
 
 module.exports = {
     createBot(type:any, attributes:any) {
-        return new Bot(attributes.botId,attributes.pairStr,attributes.privateKey);
+        const BotType = Bot[type];
+        return new BotType(attributes.botId,attributes.pairStr,attributes.privateKey);
     }
 };

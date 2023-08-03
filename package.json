@@ -5,8 +5,9 @@
   "private": true,
   "author": "Cengiz Dincoglu",
   "scripts": {
-    "marketMaker-fuji": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=fuji",
-    "marketMaker-prod": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=production"
+    "marketMaker-fuji": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --bot_type=marketMaker --NODE_ENV_SETTINGS=fuji",
+    "marketMaker-prod": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --bot_type=marketMaker --NODE_ENV_SETTINGS=production",
+    "taker-prod": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --bot_type=taker --NODE_ENV_SETTINGS=production"
   },
   "dependencies": {
     "@ethersproject/experimental": "5.7.0",
