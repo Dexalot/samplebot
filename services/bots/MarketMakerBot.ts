@@ -222,7 +222,7 @@ class MarketMakerBot extends AbstractBot {
         }
       } else {
       //--------------- SET ASKS --------------- //
-        let askPrice = new BigNumber((initialAskPrice * (1+this.getSpread(levels[x][1]-1))).toFixed(this.baseDisplayDecimals));
+        let askPrice = new BigNumber((initialAskPrice * (1+this.getSpread(levels[x][1]-1))).toFixed(this.quoteDisplayDecimals));
         let askQty = new BigNumber(this.getQty(askPrice,1,levels[x][1],availableBase));
         if (askQty.toNumber() * askPrice.toNumber() > this.minTradeAmnt){
           availableBase -= askQty.toNumber();
@@ -305,7 +305,7 @@ class MarketMakerBot extends AbstractBot {
         let amountOnOrder = (order.quantity.toNumber()-order.quantityfilled.toNumber()) * .999;
         let availableFunds = baseAvail + amountOnOrder;
 
-        let askPrice = new BigNumber((startingAskPrice * (1+this.getSpread(i))).toFixed(this.baseDisplayDecimals));
+        let askPrice = new BigNumber((startingAskPrice * (1+this.getSpread(i))).toFixed(this.quoteDisplayDecimals));
         let askQty = new BigNumber(this.getQty(askPrice,1,i+1,availableFunds));
         let amountToPlace = askQty;
         if (availableFunds < askQty.toNumber()){
