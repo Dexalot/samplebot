@@ -256,13 +256,6 @@ abstract class AbstractBot {
         this.tradePair = new ethers.Contract(deployment.address, deployment.abi.abi, this.contracts["SubnetWallet"]);
         this.contracts["TradePairs"].deployedContract = this.tradePair;
 
-        
-        deployment = this.contracts["OrderBooks"];
-        this.orderBooks = new ethers.Contract(deployment.address, deployment.abi.abi, this.contracts["SubnetWallet"]);
-        this.orderBookID = await this.tradePair.getBookId(this.tradePairByte32,0);
-        this.orderBookID1 = await this.tradePair.getBookId(this.tradePairByte32,1);
-        await this.getBestOrders();
-
         if (this.base == "sAVAX"){
           this.savaxContract = new ethers.Contract("0x2b2C81e08f1Af8835a78Bb2A90AE924ACE0eA4bE",savaxABI,this.contracts["MainnetWallet"]);
         }
@@ -272,6 +265,12 @@ abstract class AbstractBot {
         this.maxTradeAmnt = this.pairObject.maxtrade_amnt;
         this.quoteDisplayDecimals = this.pairObject.quotedisplaydecimals;
         this.baseDisplayDecimals = this.pairObject.basedisplaydecimals;
+        
+        deployment = this.contracts["OrderBooks"];
+        this.orderBooks = new ethers.Contract(deployment.address, deployment.abi.abi, this.contracts["SubnetWallet"]);
+        this.orderBookID = await this.tradePair.getBookId(this.tradePairByte32,0);
+        this.orderBookID1 = await this.tradePair.getBookId(this.tradePairByte32,1);
+        await this.getBestOrders();
 
         let avaxLoaded;
 
@@ -1984,12 +1983,20 @@ abstract class AbstractBot {
 
   async getBestOrders(){
     try {
-    const currentBestBid = await this.orderBooks.getTopOfTheBook(this.orderBookID);
-    const currentBestAsk = await this.orderBooks.getTopOfTheBook(this.orderBookID1);
-    this.currentBestBid = currentBestBid.price.toNumber()/1000000;
-    this.currentBestAsk = currentBestAsk.price.toNumber()/1000000;
+    let currentBestBidResponse = await this.orderBooks.getTopOfTheBook(this.orderBookID);
+    let currentBestAskResponse = await this.orderBooks.getTopOfTheBook(this.orderBookID1);
+    let currentBestBid = new BigNumber(currentBestBidResponse.price.toString())//.dp(this.quoteDisplayDecimals);
+    let currentBestAsk = new BigNumber(currentBestAskResponse.price.toString())//.dp(this.quoteDisplayDecimals);
+    if (this.tradePairIdentifier=="sAVAX/AVAX"){
+      this.currentBestBid = currentBestBid.div("1000000000000000000").toNumber()
+      this.currentBestAsk = currentBestAsk.div("1000000000000000000").toNumber()
+    } else {
+      this.currentBestBid = currentBestBid.div(1000000).toNumber()
+      this.currentBestAsk = currentBestAsk.div(1000000).toNumber()
+    }
+
     } catch (error) {
-      console.log("error getting best orders:");
+      console.log("error getting best orders:",error);
     }
     console.log(this.currentBestAsk);
     console.log(this.currentBestBid);
