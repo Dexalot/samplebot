@@ -164,16 +164,18 @@ class MarketMakerBot extends AbstractBot {
         let bidsSorted = sortOrders(bids, "price", "descending");
         let asksSorted = sortOrders(asks, "price", "ascending");
 
-        // If there will be overlapping orders, wait for the orders of the side in which the price moved to be replaced first, then follow with the others.
+
+
         if (currentBestAsk && startingBidPrice > currentBestAsk){
           console.log("BEST ASK: ",currentBestAsk, "STARTING BID PRICE: ", startingBidPrice)
-          startingBidPrice = currentBestAsk - (currentBestAsk * this.orderLevelSpread);
+
+          startingBidPrice = currentBestAsk - this.getIncrement();
 
           await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
 
         } else if (currentBestBid && startingAskPrice < currentBestBid){
           console.log("BEST BID: ",currentBestBid, "STARTING ASK PRICE: ", startingAskPrice)
-          startingAskPrice = currentBestBid + (currentBestBid * this.orderLevelSpread);
+          startingAskPrice = currentBestBid + this.getIncrement();
 
           await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
 
@@ -205,8 +207,10 @@ class MarketMakerBot extends AbstractBot {
 
     let initialBidPrice = this.marketPrice.toNumber() * (1-this.bidSpread);
     let initialAskPrice = this.marketPrice.toNumber() * (1+this.askSpread);
-    initialBidPrice = this.currentBestAsk && this.currentBestAsk < initialBidPrice ? this.currentBestAsk * (1-this.bidSpread) : initialBidPrice;
-    initialAskPrice = this.currentBestBid && this.currentBestBid > initialAskPrice ? this.currentBestBid * (1+this.askSpread) : initialAskPrice;
+    initialBidPrice = this.currentBestAsk && this.currentBestAsk < initialBidPrice ? this.currentBestAsk - this.getIncrement() : initialBidPrice;
+    initialAskPrice = this.currentBestBid && this.currentBestBid > initialAskPrice ? this.currentBestBid + this.getIncrement() : initialAskPrice;
+
+    console.log(initialAskPrice,initialBidPrice,this.currentBestAsk, this.currentBestBid, 'slkdfjsld');
     let newOrderList : NewOrder[] = [];
     // --------------- SET BIDS --------------- //
     for (let x = 0; x < levels.length; x++){
@@ -421,10 +425,17 @@ class MarketMakerBot extends AbstractBot {
     }
   }
 
-  // async getBestOrders(){
-  //   this.bestBid = getBottomOfTheBook
-  //   this.bestAsk = getTopOfTheBook
-  // }
+  getIncrement(): number {
+    let increment = '0.';
+    for (let i = 0; i < this.quoteDisplayDecimals; i++){
+      if (i < this.quoteDisplayDecimals - 1){
+        increment += '0'
+      } else {
+        increment += '1'
+      }
+    }
+    return parseFloat(increment);
+  }
 
 }
 
