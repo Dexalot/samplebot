@@ -21,6 +21,7 @@ class MarketMakerBot extends AbstractBot {
   protected flatAmount: any;
   protected timer: any;
   protected lastBaseUsd: any;
+  protected lastUpdate: any;
 
   constructor(botId: number, pairStr: string, privateKey: string) {
     super(botId, pairStr, privateKey);
@@ -102,8 +103,9 @@ class MarketMakerBot extends AbstractBot {
     }
 
     try {
-      if (this.status && this.marketPrice.toNumber()<this.lastMarketPrice.toNumber()*(1-parseFloat(this.refreshOrderTolerance)) || this.marketPrice.toNumber()>this.lastMarketPrice.toNumber()*(1+parseFloat(this.refreshOrderTolerance))){
+      if (this.status && ((Date.now() - this.lastUpdate)/1000 > 900 || this.marketPrice.toNumber()<this.lastMarketPrice.toNumber()*(1-parseFloat(this.refreshOrderTolerance)) || this.marketPrice.toNumber()>this.lastMarketPrice.toNumber()*(1+parseFloat(this.refreshOrderTolerance)))){
         this.orderUpdaterCounter ++;
+        this.lastUpdate = Date.now();
         this.timer = this.interval;
         console.log("000000000000000 COUNTER:",this.orderUpdaterCounter);
 
