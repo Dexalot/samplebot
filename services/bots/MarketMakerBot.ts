@@ -207,10 +207,10 @@ class MarketMakerBot extends AbstractBot {
   async placeInitialOrders(levels: number[][], availableQuote: number = this.contracts[this.quote].portfolioAvail, availableBase: number = this.contracts[this.base].portfolioAvail){
     console.log("PLACING INITAL ORDERS: ",levels);
 
-    let initialBidPrice = this.marketPrice.toNumber() * (1-this.bidSpread);
-    let initialAskPrice = this.marketPrice.toNumber() * (1+this.askSpread);
-    initialBidPrice = this.currentBestAsk && this.currentBestAsk < initialBidPrice ? this.currentBestAsk - this.getIncrement() : initialBidPrice;
-    initialAskPrice = this.currentBestBid && this.currentBestBid > initialAskPrice ? this.currentBestBid + this.getIncrement() : initialAskPrice;
+    let initialBidPrice = parseFloat((this.marketPrice.toNumber() * (1-this.bidSpread)).toFixed(this.quoteDisplayDecimals));
+    let initialAskPrice = parseFloat((this.marketPrice.toNumber() * (1+this.askSpread)).toFixed(this.quoteDisplayDecimals));
+    initialBidPrice = this.currentBestAsk && this.currentBestAsk <= initialBidPrice ? this.currentBestAsk - this.getIncrement() : initialBidPrice;
+    initialAskPrice = this.currentBestBid && this.currentBestBid >= initialAskPrice ? this.currentBestBid + this.getIncrement() : initialAskPrice;
 
     let newOrderList : NewOrder[] = [];
     // --------------- SET BIDS --------------- //
