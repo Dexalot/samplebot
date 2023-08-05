@@ -115,8 +115,8 @@ class MarketMakerBot extends AbstractBot {
         }
         
         await Promise.all([this.getBalances(),this.getBestOrders(),this.correctNonce(this.contracts["SubNetProvider"]),this.processOpenOrders()]);
-        let startingBidPrice = this.marketPrice.toNumber() * (1-this.bidSpread);
-        let startingAskPrice = this.marketPrice.toNumber() * (1+this.askSpread);
+        let startingBidPrice = parseFloat((this.marketPrice.toNumber() * (1-this.bidSpread)).toFixed(this.quoteDisplayDecimals));
+        let startingAskPrice = parseFloat((this.marketPrice.toNumber() * (1+this.askSpread)).toFixed(this.quoteDisplayDecimals));
         const currentBestAsk = this.currentBestAsk ? this.currentBestAsk : undefined;
         const currentBestBid = this.currentBestBid ? this.currentBestBid : undefined;
 
