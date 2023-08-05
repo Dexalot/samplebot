@@ -382,7 +382,7 @@ class MarketMakerBot extends AbstractBot {
         totalPooledAvax = new BigNumber(totalPooledAvax.toString());
         totalSupply = new BigNumber(totalSupply.toString());
 
-        this.baseUsd = totalPooledAvax.shiftedBy(-18).div(totalSupply.shiftedBy(-18)).toNumber() * this.quoteUsd * .9992;
+        this.baseUsd = totalPooledAvax.shiftedBy(-18).div(totalSupply.shiftedBy(-18)).toNumber() * this.quoteUsd * .9988;
       }
       if (this.baseUsd && this.quoteUsd){
         this.marketPrice = new BigNumber(this.baseUsd/this.quoteUsd);
