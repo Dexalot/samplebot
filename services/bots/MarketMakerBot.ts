@@ -373,16 +373,13 @@ class MarketMakerBot extends AbstractBot {
       let response = await axios.get('http://localhost:3000/prices');
       let prices = response.data;
       
-      this.baseUsd = prices[this.base+'-USD']; 
-      this.quoteUsd = prices[this.quote+'-USD']; 
 
       if (this.base == "sAVAX"){
-        let totalPooledAvax = await this.savaxContract.totalPooledAvax();
-        let totalSupply = await this.savaxContract.totalSupply();
-        totalPooledAvax = new BigNumber(totalPooledAvax.toString());
-        totalSupply = new BigNumber(totalSupply.toString());
-
-        this.baseUsd = totalPooledAvax.shiftedBy(-18).div(totalSupply.shiftedBy(-18)).toNumber() * this.quoteUsd * .9985;
+        this.quoteUsd = prices[this.quote+'-USD']; 
+        this.baseUsd = prices['sAVAX-AVAX'] * this.quoteUsd; 
+      } else {
+        this.baseUsd = prices[this.base+'-USD']; 
+        this.quoteUsd = prices[this.quote+'-USD']; 
       }
       if (this.baseUsd && this.quoteUsd){
         this.marketPrice = new BigNumber(this.baseUsd/this.quoteUsd);
