@@ -902,7 +902,7 @@ abstract class AbstractBot {
   }
 
   async correctNonce(provider: any) {
-    let filePath = path.join(__dirname, './nonce.json');
+    // let filePath = path.join(__dirname, './nonce.json');
     try {
       const expectedNonce = await provider.provider.getTransactionCount(this.account);
       provider.nonce = expectedNonce;
