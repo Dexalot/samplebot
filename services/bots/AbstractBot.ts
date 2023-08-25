@@ -72,7 +72,6 @@ abstract class AbstractBot {
   protected currentBestBid: any;
   protected currentBestAsk: any;
   protected counter: any;
-  protected lastNonce: any;
 
   constructor(botId: number, pairStr: string, privateKey: string, ratelimit_token?: string) {
     this.logger = getLogger("Bot");
@@ -803,7 +802,7 @@ abstract class AbstractBot {
     const gasLimit = Math.min(gasEstimate.mul(120).div(100).toNumber(), 30000000); // Block Gas Limit 30M
     const optionsWithNonce = { gasLimit, maxFeePerGas, maxPriorityFeePerGas: 1, nonce: 0 };
 
-    optionsWithNonce.nonce = this.lastNonce++;
+    optionsWithNonce.nonce = provider.nonce++;
     return optionsWithNonce;
   }
 
@@ -906,9 +905,6 @@ abstract class AbstractBot {
     try {
       const expectedNonce = await provider.provider.getTransactionCount(this.account);
       provider.nonce = expectedNonce;
-      if (provider == this.contracts["SubNetProvider"]){
-        this.lastNonce = provider.nonce;
-      }
     } catch (error) {
       //this.logger.error(`${this.instanceName} 'Error during nonce correction`, error);
     }
