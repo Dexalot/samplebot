@@ -1399,7 +1399,7 @@ abstract class AbstractBot {
 
       console.log("CANCEL REPLACE: New clientOrderid: ", clientOrderId," PRICE:", price.toNumber(), " QTY: ", quantity.toNumber());
 
-      const gasest = await this.getCancelReplaceOrderGasEstimate(order.id, clientOrderId ,priceToSend, quantityToSend);
+      //const gasest = await this.getCancelReplaceOrderGasEstimate(order.id, clientOrderId ,priceToSend, quantityToSend);
 
       //console.log("CANCEL REPLACE: GOT GASEST");
 
@@ -1410,7 +1410,7 @@ abstract class AbstractBot {
           order.side === 0 ? "BUY" : "SELL"
         } ::: ${quantity.toString()} ${this.base} @ ${price.toString()} ${this.quote}`
       );
-      const options = await this.getOptions(this.contracts["SubNetProvider"], gasest);
+      const options = await this.getOptions(this.contracts["SubNetProvider"], BigNumberEthers.from(1200000));
       const tx = await this.tradePair.cancelReplaceOrder(order.id, clientOrderId, priceToSend, quantityToSend, options);
       const orderLog = await tx.wait();
 
