@@ -176,7 +176,13 @@ class MarketMakerBot extends AbstractBot {
         // if takerEnabled is true and best orders are outside of the takerspread, create an immediate or cancel order at the taker price. Otherwise replace orders as usual.
         if (this.takerEnabled && currentBestAsk && takerBidPrice > currentBestAsk) {
           await this.cancelOrderList([]);
-          let bidAmount = new BigNumber((this.contracts[this.quote].portfolioTot / takerBidPrice) * .99);
+
+          let bidAmount: any = 0;
+          if ((this.contracts[this.quote].portfolioTot / takerBidPrice) > this.maxTradeAmnt){
+            bidAmount = new BigNumber(this.maxTradeAmnt * .99);
+          } else {
+            bidAmount = new BigNumber((this.contracts[this.quote].portfolioTot / takerBidPrice) * .99);
+          }
           let bidPrice = new BigNumber(takerBidPrice);
           console.log("TAKER BUY,",bidAmount,"at: ",bidPrice);
           await this.addOrder(0,bidAmount,bidPrice,1,2,0);
@@ -184,7 +190,13 @@ class MarketMakerBot extends AbstractBot {
 
         } else if (this.takerEnabled && currentBestBid && takerAskPrice < currentBestBid){
           await this.cancelOrderList([]);
-          let askAmount = new BigNumber((this.contracts[this.base].portfolioTot) * .99);
+
+          let askAmount: any = 0;
+          if ((this.contracts[this.base].portfolioTot) > this.maxTradeAmnt){
+            askAmount = new BigNumber(this.maxTradeAmnt * .99);
+          } else {
+            askAmount = new BigNumber(this.contracts[this.base].portfolioTot * .99);
+          }
           let askPrice = new BigNumber(takerAskPrice);
           console.log("TAKER SELL,",askAmount,"at: ",askPrice);
           await this.addOrder(1,askAmount,askPrice,1,2,0);
