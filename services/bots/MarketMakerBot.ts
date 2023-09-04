@@ -19,6 +19,8 @@ class MarketMakerBot extends AbstractBot {
   protected orderLevelQty: any;
   protected refreshOrderTolerance: any;
   protected flatAmount: any;
+  protected takerSpread: any;
+  protected takerEnabled: any;
   protected timer: any;
   protected lastBaseUsd: any;
   protected lastUpdate: any;
@@ -35,6 +37,8 @@ class MarketMakerBot extends AbstractBot {
     this.orderLevelQty = this.config.orderLevelQty;
     this.refreshOrderTolerance = this.config.refreshOrderTolerance/100;
     this.flatAmount = this.config.flatAmount;
+    this.takerSpread = this.config.takerSpread/100;
+    this.takerEnabled = this.config.takerEnabled;
   }
 
   async saveBalancestoDb(balancesRefreshed: boolean): Promise<void> {
@@ -47,7 +51,7 @@ class MarketMakerBot extends AbstractBot {
       await this.getNewMarketPrice();
       // await this.getBestOrders();
 
-      this.interval = 15000; //Min 10 seconds
+      this.interval = 30000; //Min 10 seconds
 
       // PNL  TO KEEP TRACK OF PNL , FEE & TCOST  etc
       //this.PNL = new PNL(getConfig('NODE_ENV_SETTINGS'), this.instanceName, this.base, this.quote, this.config, this.account);
@@ -117,6 +121,8 @@ class MarketMakerBot extends AbstractBot {
         await Promise.all([this.getBalances(),this.getBestOrders(),this.correctNonce(this.contracts["SubNetProvider"]),this.processOpenOrders()]);
         let startingBidPrice = parseFloat((this.marketPrice.toNumber() * (1-this.bidSpread)).toFixed(this.quoteDisplayDecimals));
         let startingAskPrice = parseFloat((this.marketPrice.toNumber() * (1+this.askSpread)).toFixed(this.quoteDisplayDecimals));
+        let takerBidPrice = parseFloat((this.marketPrice.toNumber() * (1-this.takerSpread)).toFixed(this.quoteDisplayDecimals));
+        let takerAskPrice = parseFloat((this.marketPrice.toNumber() * (1+this.takerSpread)).toFixed(this.quoteDisplayDecimals));
         const currentBestAsk = this.currentBestAsk ? this.currentBestAsk : undefined;
         const currentBestBid = this.currentBestBid ? this.currentBestBid : undefined;
 
@@ -167,25 +173,43 @@ class MarketMakerBot extends AbstractBot {
         let asksSorted = sortOrders(asks, "price", "ascending");
 
 
+        // if takerEnabled is true and best orders are outside of the takerspread, create an immediate or cancel order at the taker price. Otherwise replace orders as usual.
+        if (this.takerEnabled && currentBestAsk && takerBidPrice > currentBestAsk) {
+          await this.cancelOrderList([]);
+          let bidAmount = new BigNumber((this.contracts[this.quote].portfolioTot / takerBidPrice) * .99);
+          let bidPrice = new BigNumber(takerBidPrice);
+          console.log("TAKER BUY,",bidAmount,"at: ",bidPrice);
+          await this.addOrder(0,bidAmount,bidPrice,1,2,0);
+          this.lastMarketPrice = new BigNumber(0);
 
-        if (currentBestAsk && startingBidPrice > currentBestAsk){
+        } else if (this.takerEnabled && currentBestBid && takerAskPrice < currentBestBid){
+          await this.cancelOrderList([]);
+          let askAmount = new BigNumber((this.contracts[this.base].portfolioTot) * .99);
+          let askPrice = new BigNumber(takerAskPrice);
+          console.log("TAKER SELL,",askAmount,"at: ",askPrice);
+          await this.addOrder(1,askAmount,askPrice,1,2,0);
+          this.lastMarketPrice = new BigNumber(0);
+
+        } else if (currentBestAsk && startingBidPrice > currentBestAsk){
           console.log("BEST ASK: ",currentBestAsk, "STARTING BID PRICE: ", startingBidPrice)
 
           startingBidPrice = currentBestAsk - this.getIncrement();
 
           await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
+          this.lastMarketPrice = this.marketPrice;
 
         } else if (currentBestBid && startingAskPrice < currentBestBid){
           console.log("BEST BID: ",currentBestBid, "STARTING ASK PRICE: ", startingAskPrice)
           startingAskPrice = currentBestBid + this.getIncrement();
 
           await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
+          this.lastMarketPrice = this.marketPrice;
 
         } else {
           await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
+          this.lastMarketPrice = this.marketPrice;
         }
           
-        this.lastMarketPrice = this.marketPrice;
         }
     } catch (error) {
       this.logger.error(`${this.instanceName} Error in UpdateOrders`, error);
