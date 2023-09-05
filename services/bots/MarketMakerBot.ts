@@ -39,6 +39,7 @@ class MarketMakerBot extends AbstractBot {
     this.flatAmount = this.config.flatAmount;
     this.takerSpread = this.config.takerSpread/100;
     this.takerEnabled = this.config.takerEnabled;
+    this.lastUpdate = 0;
   }
 
   async saveBalancestoDb(balancesRefreshed: boolean): Promise<void> {
@@ -107,7 +108,7 @@ class MarketMakerBot extends AbstractBot {
     }
 
     try {
-      if (this.status && ((Date.now() - this.lastUpdate)/1000 > 900 || this.marketPrice.toNumber()<this.lastMarketPrice.toNumber()*(1-parseFloat(this.refreshOrderTolerance)) || this.marketPrice.toNumber()>this.lastMarketPrice.toNumber()*(1+parseFloat(this.refreshOrderTolerance)))){
+      if (this.status && ((Date.now() - this.lastUpdate)/1000 > 600 || this.marketPrice.toNumber()<this.lastMarketPrice.toNumber()*(1-parseFloat(this.refreshOrderTolerance)) || this.marketPrice.toNumber()>this.lastMarketPrice.toNumber()*(1+parseFloat(this.refreshOrderTolerance)))){
         this.orderUpdaterCounter ++;
         this.lastUpdate = Date.now();
         this.timer = this.interval;
