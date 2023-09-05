@@ -51,7 +51,7 @@ class MarketMakerBot extends AbstractBot {
       await this.getNewMarketPrice();
       // await this.getBestOrders();
 
-      this.interval = 30000; //Min 10 seconds
+      this.interval = 15000; //Min 10 seconds
 
       // PNL  TO KEEP TRACK OF PNL , FEE & TCOST  etc
       //this.PNL = new PNL(getConfig('NODE_ENV_SETTINGS'), this.instanceName, this.base, this.quote, this.config, this.account);
