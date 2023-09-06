@@ -175,7 +175,7 @@ class MarketMakerBot extends AbstractBot {
 
 
         // if takerEnabled is true and best orders are outside of the takerspread, create an immediate or cancel order at the taker price. Otherwise replace orders as usual.
-        if (this.takerEnabled && currentBestAsk && takerBidPrice > currentBestAsk && (this.contracts[this.quote].portfolioTot / takerBidPrice) > this.minTradeAmnt) {
+        if (this.takerEnabled && currentBestAsk && takerBidPrice > currentBestAsk && (parseFloat(this.contracts[this.quote].portfolioTot) / takerBidPrice) > this.minTradeAmnt) {
           await this.cancelOrderList([]);
 
           let bidAmount: any = 0;
@@ -189,7 +189,7 @@ class MarketMakerBot extends AbstractBot {
           await this.addOrder(0,bidAmount,bidPrice,1,2,0);
           this.lastMarketPrice = new BigNumber(0);
 
-        } else if (this.takerEnabled && currentBestBid && takerAskPrice < currentBestBid && this.contracts[this.base].portfolioTot > this.minTradeAmnt){
+        } else if (this.takerEnabled && currentBestBid && takerAskPrice < currentBestBid && parseFloat(this.contracts[this.base].portfolioTot) > this.minTradeAmnt){
           await this.cancelOrderList([]);
 
           let askAmount: any = 0;
