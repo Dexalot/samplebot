@@ -193,8 +193,8 @@ class MarketMakerBot extends AbstractBot {
           await this.cancelOrderList([]);
 
           let askAmount: any = 0;
-          if (this.contracts[this.base].portfolioTot > this.maxTradeAmnt){
-            askAmount = new BigNumber(this.maxTradeAmnt * .99);
+          if (this.contracts[this.base].portfolioTot * takerAskPrice > this.maxTradeAmnt){
+            askAmount = new BigNumber(this.maxTradeAmnt / takerAskPrice * .99);
           } else {
             askAmount = new BigNumber(this.contracts[this.base].portfolioTot * .99);
           }
