@@ -775,25 +775,30 @@ abstract class AbstractBot {
   }
 
   async getRevertReason(error: any, provider: any = this.contracts["SubNetProvider"]) {
-    let reason;
-    const idx = error.message.indexOf("VM Exception while processing transaction: reverted ");
-    if (idx > -1) {
-      //Hardhat revert reason already in the message
-      return error.message.substring(idx + 72, idx + 81);
-    } else {
-      if (!error.transaction) {
-        this.logger.warn(`${this.instanceName} getRevertReason: error.transaction is undefined`);
+    try{
+      let reason;
+      const idx = error.message.indexOf("VM Exception while processing transaction: reverted ");
+      if (idx > -1) {
+        //Hardhat revert reason already in the message
+        return error.message.substring(idx + 72, idx + 81);
       } else {
-        //https://gist.github.com/gluk64/fdea559472d957f1138ed93bcbc6f78a
-        const code = await provider.provider.call(error.transaction, error.blockNumber);
-        reason = ethers.utils.toUtf8String("0x" + code.substr(138));
-        const i = reason.indexOf("\0"); // delete all null characters after the string
-        if (i > -1) {
-          return reason.substring(0, i);
+        if (!error.transaction) {
+          this.logger.warn(`${this.instanceName} getRevertReason: error.transaction is undefined`);
+        } else {
+          //https://gist.github.com/gluk64/fdea559472d957f1138ed93bcbc6f78a
+          const code = await provider.provider.call(error.transaction, error.blockNumber);
+          reason = ethers.utils.toUtf8String("0x" + code.substr(138));
+          const i = reason.indexOf("\0"); // delete all null characters after the string
+          if (i > -1) {
+            return reason.substring(0, i);
+          }
         }
       }
+      return reason;
+    } catch {
+      return "Unable to find reason for revert";
     }
-    return reason;
+
   }
 
   async getOptions(provider: any = this.contracts["SubNetProvider"], gasEstimate: BigNumberEthers = BigNumberEthers.from(1000000)) {
