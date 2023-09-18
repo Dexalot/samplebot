@@ -205,7 +205,7 @@ class MarketMakerBot extends AbstractBot {
           await this.addOrder(1,askAmount,askPrice,1,2,0);
           this.lastMarketPrice = new BigNumber(0);
 
-        } else if (currentBestAsk && startingBidPrice > currentBestAsk){
+        } else if (currentBestAsk && startingBidPrice >= currentBestAsk){
           console.log("BEST ASK: ",currentBestAsk, "STARTING BID PRICE: ", startingBidPrice)
 
           startingBidPrice = Math.floor((currentBestAsk - this.getIncrement())*Math.pow(10,this.quoteDisplayDecimals))/Math.pow(10,this.quoteDisplayDecimals);
@@ -213,7 +213,7 @@ class MarketMakerBot extends AbstractBot {
           await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
           this.lastMarketPrice = this.marketPrice;
 
-        } else if (currentBestBid && startingAskPrice < currentBestBid){
+        } else if (currentBestBid && startingAskPrice <= currentBestBid){
           console.log("BEST BID: ",currentBestBid, "STARTING ASK PRICE: ", startingAskPrice)
           startingAskPrice = Math.ceil((currentBestBid + this.getIncrement())*Math.pow(10,this.quoteDisplayDecimals))/Math.pow(10,this.quoteDisplayDecimals);
 
