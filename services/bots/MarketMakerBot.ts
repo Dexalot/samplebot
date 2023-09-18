@@ -215,7 +215,7 @@ class MarketMakerBot extends AbstractBot {
           console.log("BEST BID: ",currentBestBid, "STARTING ASK PRICE: ", startingAskPrice)
           startingAskPrice = currentBestBid + this.getIncrement();
 
-          await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
+          await Promise.all([this.replaceBids(bidsSorted, startingAskPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
           this.lastMarketPrice = this.marketPrice;
 
         } else {
