@@ -133,7 +133,6 @@ class MarketMakerBot extends AbstractBot {
         let takerAskPrice = parseFloat((this.marketPrice.toNumber() * (1+this.takerSpread)).toFixed(this.quoteDisplayDecimals));
         const currentBestAsk = this.currentBestAsk ? this.currentBestAsk : undefined;
         const currentBestBid = this.currentBestBid ? this.currentBestBid : undefined;
-        console.log("Starting Bid Price:",startingBidPrice,"Starting Ask Price:", startingAskPrice);
 
         let bids: any[] = []; 
         let asks: any[] = [];
@@ -223,7 +222,7 @@ class MarketMakerBot extends AbstractBot {
           let startingAskPriceBG = new BigNumber(currentBestBid + this.getIncrement())
           startingAskPrice = startingAskPriceBG.dp(this.quoteDisplayDecimals,BigNumber.ROUND_UP).toNumber();
 
-          await Promise.all([this.replaceBids(bidsSorted, startingAskPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
+          await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
           this.lastMarketPrice = this.marketPrice;
 
         } else {
@@ -298,7 +297,7 @@ class MarketMakerBot extends AbstractBot {
   }
 
   async replaceBids(bidsSorted: any, startingBidPrice: number){
-    console.log("REPLACE BIDS: ",bidsSorted.length);
+    console.log("REPLACE BIDS: ",bidsSorted.length, "startingBidPrice:", startingBidPrice);
     let quoteAvail = parseFloat(this.contracts[this.quote].portfolioAvail);
     for (let i = 0; i < this.orderLevels; i ++){
       let order = {id:null, status:null, quantity:new BigNumber(0),quantityfilled:new BigNumber(0), level:0, price: new BigNumber(0)};
@@ -318,7 +317,7 @@ class MarketMakerBot extends AbstractBot {
           amountToPlace = new BigNumber((availableFunds/bidPrice.toNumber())*.999);
         }
         if (amountToPlace.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
-          console.log("REPLACE ORDER:",amountToPlace.toNumber(),bidQty.toNumber(), i+1);
+          console.log("REPLACE ORDER:",bidPrice.toNumber(),bidQty.toNumber(), i+1);
           quoteAvail -= bidQty.toNumber() * bidPrice.toNumber() - amountOnOrder
           this.cancelReplaceOrder(order,bidPrice,amountToPlace);
         } else {
@@ -340,7 +339,7 @@ class MarketMakerBot extends AbstractBot {
   }
 
   async replaceAsks (asksSorted: any, startingAskPrice: number){
-    console.log("REPLACE ASKS: ",asksSorted.length);
+    console.log("REPLACE ASKS: ",asksSorted.length, "startingAskPrice:", startingAskPrice);
     let baseAvail = parseFloat(this.contracts[this.base].portfolioAvail);
 
     for (let i = 0; i < this.orderLevels; i ++){
