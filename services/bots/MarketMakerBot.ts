@@ -124,6 +124,11 @@ class MarketMakerBot extends AbstractBot {
         let startingBidPrice = startingBidPriceBG.toNumber();
         let startingAskPriceBG = this.marketPrice.multipliedBy(1+this.askSpread).dp(this.quoteDisplayDecimals,BigNumber.ROUND_UP);
         let startingAskPrice = startingAskPriceBG.toNumber();
+
+        if (startingBidPrice == startingAskPrice){
+          startingAskPrice += this.getIncrement();
+        }
+
         let takerBidPrice = parseFloat((this.marketPrice.toNumber() * (1-this.takerSpread)).toFixed(this.quoteDisplayDecimals));
         let takerAskPrice = parseFloat((this.marketPrice.toNumber() * (1+this.takerSpread)).toFixed(this.quoteDisplayDecimals));
         const currentBestAsk = this.currentBestAsk ? this.currentBestAsk : undefined;
