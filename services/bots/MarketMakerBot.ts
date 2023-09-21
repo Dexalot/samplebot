@@ -120,14 +120,15 @@ class MarketMakerBot extends AbstractBot {
         }
         
         await Promise.all([this.getBalances(),this.getBestOrders(),this.correctNonce(this.contracts["SubNetProvider"]),this.processOpenOrders()]);
-        let startingBidPrice = parseFloat((this.marketPrice.toNumber() * (1-this.bidSpread)).toFixed(this.quoteDisplayDecimals));
-        startingBidPrice = Math.floor(startingBidPrice*Math.pow(10,this.quoteDisplayDecimals))/Math.pow(10,this.quoteDisplayDecimals)
-        let startingAskPrice = parseFloat((this.marketPrice.toNumber() * (1+this.askSpread)).toFixed(this.quoteDisplayDecimals));
-        startingAskPrice = Math.ceil(startingAskPrice*Math.pow(10,this.quoteDisplayDecimals))/Math.pow(10,this.quoteDisplayDecimals)
+        let startingBidPriceBG = this.marketPrice.multipliedBy(1-this.bidSpread).dp(this.quoteDisplayDecimals, BigNumber.ROUND_DOWN);
+        let startingBidPrice = startingBidPriceBG.toNumber();
+        let startingAskPriceBG = this.marketPrice.multipliedBy(1+this.askSpread).dp(this.quoteDisplayDecimals,BigNumber.ROUND_UP);
+        let startingAskPrice = startingAskPriceBG.toNumber();
         let takerBidPrice = parseFloat((this.marketPrice.toNumber() * (1-this.takerSpread)).toFixed(this.quoteDisplayDecimals));
         let takerAskPrice = parseFloat((this.marketPrice.toNumber() * (1+this.takerSpread)).toFixed(this.quoteDisplayDecimals));
         const currentBestAsk = this.currentBestAsk ? this.currentBestAsk : undefined;
         const currentBestBid = this.currentBestBid ? this.currentBestBid : undefined;
+        console.log("Starting Bid Price:",startingBidPrice,"Starting Ask Price:", startingAskPrice);
 
         let bids: any[] = []; 
         let asks: any[] = [];
@@ -206,16 +207,16 @@ class MarketMakerBot extends AbstractBot {
           this.lastMarketPrice = new BigNumber(0);
 
         } else if (currentBestAsk && startingBidPrice >= currentBestAsk){
-          console.log("BEST ASK: ",currentBestAsk, "STARTING BID PRICE: ", startingBidPrice)
 
-          startingBidPrice = Math.floor((currentBestAsk - this.getIncrement())*Math.pow(10,this.quoteDisplayDecimals))/Math.pow(10,this.quoteDisplayDecimals);
+          let startingBidPriceBG = new BigNumber(currentBestAsk - this.getIncrement())
+          startingBidPrice = startingBidPriceBG.dp(this.quoteDisplayDecimals,BigNumber.ROUND_DOWN).toNumber();
 
           await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
           this.lastMarketPrice = this.marketPrice;
 
         } else if (currentBestBid && startingAskPrice <= currentBestBid){
-          console.log("BEST BID: ",currentBestBid, "STARTING ASK PRICE: ", startingAskPrice)
-          startingAskPrice = Math.ceil((currentBestBid + this.getIncrement())*Math.pow(10,this.quoteDisplayDecimals))/Math.pow(10,this.quoteDisplayDecimals);
+          let startingAskPriceBG = new BigNumber(currentBestBid + this.getIncrement())
+          startingAskPrice = startingAskPriceBG.dp(this.quoteDisplayDecimals,BigNumber.ROUND_UP).toNumber();
 
           await Promise.all([this.replaceBids(bidsSorted, startingAskPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
           this.lastMarketPrice = this.marketPrice;
@@ -280,7 +281,6 @@ class MarketMakerBot extends AbstractBot {
 
   //   // --------------- EXECUTE ORDERS --------------- //
     if (newOrderList.length == 0){
-      console.log("ERROR - NewOrderList empty");
     } else if (newOrderList.length == 1){
       if (this.status){
         this.addOrder(newOrderList[0].side,newOrderList[0].quantity,newOrderList[0].price,1,3,newOrderList[0].level);
@@ -463,15 +463,8 @@ class MarketMakerBot extends AbstractBot {
   }
 
   getIncrement(): number {
-    let increment = '0.';
-    for (let i = 0; i < this.quoteDisplayDecimals; i++){
-      if (i < this.quoteDisplayDecimals - 1){
-        increment += '0'
-      } else {
-        increment += '1'
-      }
-    }
-    return parseFloat(increment);
+    let increment = 1 / (Math.pow(10,this.quoteDisplayDecimals));
+    return increment;
   }
 
 }
