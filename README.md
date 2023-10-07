@@ -1,18 +1,19 @@
-## Beastlorion's Custom Dexalot Bots
+# Beastlorion's Dexalot MarketMaker
 
-If you don't have nvm installed, follow the steps here: https://tecadmin.net/how-to-install-nvm-on-ubuntu-20-04/
-
-## Setup:
-
+## Setup
 ```
 nvm install 16.15.1
-git checkout customized_beastlorion
 yarn install
 ```
 
-parameters are declared in .env.production for production or .env.fuji for testnet
+You can get AVAX from fuji faucet and sell your avax against USDC at Dexalot Fuji at https://app.dexalot-test.com
+if you need more USDC please contact the Dexalot Team.
+
+Config parameters are declared in .env.production for production or .env.fuji for testnet.
+For production, I recommend using a secrets manager for your wallet's private key for enhanced security. Also if you're using a remote server, which you probably should be, you should whitelist the IP that you will be connecting to it from.
 
 Paste this into your .env.fuji with your private key and address. PLEASE USE A TEST WALLET.
+
 ```
 { "bot_id" : "100",
 "bot_type" : "MarketMakerBot",
@@ -49,11 +50,10 @@ Examples of other markets:
 "sAVAX/AVAX"
 ```
 
-You can get AVAX from fuji faucet and sell your avax against USDC at Dexalot Fuji at https://app.dexalot-test.com
-if you need more USDC please contact the Dexalot Team.
-
 ## To run
-NOTE: You will need to either start a price_feeds instance or another service to serve prices for the bot. You can also hardcode a price for testing purposes in getNewMarketPrice()
+- You will need to start a price_feeds instance which serves price data to a local port: https://github.com/Beastlorion/dexalotBot_price_feeds
+- You can edit the price calculations there if you'd like.
+- Once that is running on the same machine, run one of the following:
 
 Fuji Testnet:
 ```
@@ -97,19 +97,16 @@ MarketMakerBot extends the AbstractBot implementation. It holds the main logic f
 This bot is an alternative to MarketMakerBot. The key difference is instead of replacing individual orders, it will cancel all of the active orders in one call, wait for confirmation, and then place all fresh orders in one call.
 
 Pros:
-- Uses less calls/good for avoiding rate limitting. (If you're serious about this you'll want to start your own rpc node for unlimitted rpc calls.)
+- Uses far fewer calls, which is good for avoiding rate limitting. (If you're serious about this you'll want to start your own rpc node for unlimitted rpc calls. You can add a custom rpc url to the config file)
 - The logic is much simpler and easier to understand.
+
 Cons:
 - Your orders will be off the books for about 8-12 seconds while it is waiting to get confirmation from transactions processing.
-
-
-## TO DO
- Currently retrieves price feeds from another port on local host(which I'll add to a "price_feeds" repository). You may want to change how it calculates prices or where it fetches the prices from.
-
+- I don't actively use this version, so there may still be some bugs that need to be worked out.
 
 ## DISCLAIMER
 
-I am sharing this bot for the benefit of Dexalot Exchange. It is still a work in progress. I will assume no responsibility for others using this.
+I am sharing this bot for free to encourage people to try providing liquidity for Dexalot Exchange. It is still a work in progress. I assume no responsibility for you or others using this.
 USE AT YOUR OWN RISK
 
 Good luck! :D
