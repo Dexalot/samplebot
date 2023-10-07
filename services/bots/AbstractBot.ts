@@ -7,14 +7,11 @@ import { BlockchainContractType } from "../../models/BlockchainContractType";
 import { BigNumber } from "bignumber.js";
 import { BigNumber as BigNumberEthers } from "ethers";
 import axios from "axios";
-import fs from "fs";
-import path from "path";
 import { getLogger } from "../logger";
 import OrderBook from "./orderbook";
 import NewOrder from "./classes";
 
 import ERC20ABI from "../../artifacts/contracts/ERC20.json";
-import savaxABI from "../../artifacts/contracts/savaxABI.json";
 import OrderBookRecordRaw from "../../models/orderBookRecordRaw";
 import OrderBookRaw from "../../models/orderBookRaw";
 const apiUrl = getConfig("API_URL") + "privapi/trading/";
@@ -48,7 +45,7 @@ abstract class AbstractBot {
   protected filter: any;
   protected cleanupCalled = false;
   protected interval = 20000;
-  protected orderbook: any; //local orderbook to keep track of my own orders ONLY
+  protected orderbook: any; //local orderbook
   protected chainOrderbook: any; //orderbook from the chain
   protected orderUpdater: NodeJS.Timeout | undefined;
   protected rebalancePct = 0.9;
@@ -68,7 +65,6 @@ abstract class AbstractBot {
   protected orderBooks: any;
   protected orderBookID: any;
   protected orderBookID1: any;
-  protected savaxContract: any;
   protected currentBestBid: any;
   protected currentBestAsk: any;
   protected counter: any;
@@ -256,11 +252,6 @@ abstract class AbstractBot {
         this.tradePair = new ethers.Contract(deployment.address, deployment.abi.abi, this.contracts["SubnetWallet"]);
         this.contracts["TradePairs"].deployedContract = this.tradePair;
 
-        if (this.base == "sAVAX"){
-          this.savaxContract = new ethers.Contract("0x2b2C81e08f1Af8835a78Bb2A90AE924ACE0eA4bE",savaxABI,this.contracts["MainnetWallet"]);
-        }
-        
-
         this.minTradeAmnt = this.pairObject.mintrade_amnt;
         this.maxTradeAmnt = this.pairObject.maxtrade_amnt;
         this.quoteDisplayDecimals = this.pairObject.quotedisplaydecimals;
@@ -408,7 +399,6 @@ abstract class AbstractBot {
   abstract saveBalancestoDb(balancesRefreshed: boolean): Promise<void>;
   abstract getPrice(side: number): BigNumber;
   abstract getAlotPrice(): Promise<number>;
-  // infinite loop that updates the order books periodically
   abstract startOrderUpdater(): Promise<void>;
   abstract getBaseCapital(): number;
   abstract getQuoteCapital(): number;

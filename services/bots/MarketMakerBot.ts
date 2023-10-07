@@ -102,6 +102,7 @@ class MarketMakerBot extends AbstractBot {
     }
   }
 
+  // this is the meat and potatoes of the bot. It will repeatedly call itself to refresh orders if the price is outside the refreshOrderTolerance spread, or too much time has passed since the last update.
   async updateOrders() {
     if (this.orderUpdater != undefined) {
       clearTimeout(this.orderUpdater);
@@ -114,21 +115,26 @@ class MarketMakerBot extends AbstractBot {
         this.timer = this.interval;
         console.log("000000000000000 COUNTER:",this.orderUpdaterCounter);
 
-        // having issues with nonces when avax/usdc and avax/usdt send orders at the same time. This gives priority to avaxusdc
-        if (this.tradePairIdentifier == "AVAX/USDt"){
-          await utils.sleep(500);
-        }
+        // Uncomment the following when running both avax markets on the same wallet at the same time to avoid nonce errors because avax/usdc and avax/usdt tend to send orders at the same time. This gives priority to avaxusdc
+        // If you're serious about market making, you'll want to set up individual wallets for all of the high volatility markets to avoid nonce conflicts and other possible errors.
+
+        // if (this.tradePairIdentifier == "AVAX/USDt"){
+        //   await utils.sleep(500);
+        // }
         
+        // updates balances, gets best bids and asks, and corrects the nonce
         await Promise.all([this.getBalances(),this.getBestOrders(),this.correctNonce(this.contracts["SubNetProvider"]),this.processOpenOrders()]);
         let startingBidPriceBG = this.marketPrice.multipliedBy(1-this.bidSpread).dp(this.quoteDisplayDecimals, BigNumber.ROUND_DOWN);
         let startingBidPrice = startingBidPriceBG.toNumber();
         let startingAskPriceBG = this.marketPrice.multipliedBy(1+this.askSpread).dp(this.quoteDisplayDecimals,BigNumber.ROUND_UP);
         let startingAskPrice = startingAskPriceBG.toNumber();
 
+        // if the bid and ask are the same price, increase the ask by one tick
         if (startingBidPrice == startingAskPrice){
           startingAskPrice += this.getIncrement();
         }
 
+        // if takerEnabled config is true, these prices will be used to determine what price to place taker orders at.
         let takerBidPrice = parseFloat((this.marketPrice.toNumber() * (1-this.takerSpread)).toFixed(this.quoteDisplayDecimals));
         let takerAskPrice = parseFloat((this.marketPrice.toNumber() * (1+this.takerSpread)).toFixed(this.quoteDisplayDecimals));
         const currentBestAsk = this.currentBestAsk ? this.currentBestAsk : undefined;
@@ -138,6 +144,7 @@ class MarketMakerBot extends AbstractBot {
         let asks: any[] = [];
         let duplicates: any[] = [];
 
+        // cycles through all active orders in memory and sorts them into bids or asks. If they are duplicate records, cancel their corresponding orders. They will be replaced on the next loop.
         this.orders.forEach((e,i)=>{
           if (e.side === 0 && e.level > 0 && (e.status == 0 || e.status == 2)){
             let skip = false;
@@ -182,7 +189,7 @@ class MarketMakerBot extends AbstractBot {
 
 
         // if takerEnabled is true and best orders are outside of the takerspread, create an immediate or cancel order at the taker price. Otherwise replace orders as usual.
-        if (this.takerEnabled && currentBestAsk && takerBidPrice > currentBestAsk && (parseFloat(this.contracts[this.quote].portfolioTot) / takerBidPrice) > this.minTradeAmnt) {
+        if (this.takerEnabled && currentBestAsk && takerBidPrice > currentBestAsk && (parseFloat(this.contracts[this.quote].portfolioTot) / takerBidPrice) > this.minTradeAmnt) { //taker bid
           await this.cancelOrderList([]);
 
           let bidAmount: any = 0;
@@ -196,7 +203,7 @@ class MarketMakerBot extends AbstractBot {
           await this.addOrder(0,bidAmount,bidPrice,1,2,0);
           this.lastMarketPrice = new BigNumber(0);
 
-        } else if (this.takerEnabled && currentBestBid && takerAskPrice < currentBestBid && parseFloat(this.contracts[this.base].portfolioTot) > this.minTradeAmnt){
+        } else if (this.takerEnabled && currentBestBid && takerAskPrice < currentBestBid && parseFloat(this.contracts[this.base].portfolioTot) > this.minTradeAmnt){ // taker ask
           await this.cancelOrderList([]);
 
           let askAmount: any = 0;
@@ -210,7 +217,7 @@ class MarketMakerBot extends AbstractBot {
           await this.addOrder(1,askAmount,askPrice,1,2,0);
           this.lastMarketPrice = new BigNumber(0);
 
-        } else if (currentBestAsk && startingBidPrice >= currentBestAsk){
+        } else if (currentBestAsk && startingBidPrice >= currentBestAsk){ // adjust prices if startingBidPrice is higher than the bestAsk. Then replace all orders.
 
           let startingBidPriceBG = new BigNumber(currentBestAsk - this.getIncrement())
           startingBidPrice = startingBidPriceBG.dp(this.quoteDisplayDecimals,BigNumber.ROUND_DOWN).toNumber();
@@ -218,14 +225,14 @@ class MarketMakerBot extends AbstractBot {
           await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
           this.lastMarketPrice = this.marketPrice;
 
-        } else if (currentBestBid && startingAskPrice <= currentBestBid){
+        } else if (currentBestBid && startingAskPrice <= currentBestBid){ // adjust prices if startingAskPrice is lower than the bestBid. Then replace all orders.
           let startingAskPriceBG = new BigNumber(currentBestBid + this.getIncrement())
           startingAskPrice = startingAskPriceBG.dp(this.quoteDisplayDecimals,BigNumber.ROUND_UP).toNumber();
 
           await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
           this.lastMarketPrice = this.marketPrice;
 
-        } else {
+        } else { // replace all orders
           await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
           this.lastMarketPrice = this.marketPrice;
         }
@@ -296,6 +303,7 @@ class MarketMakerBot extends AbstractBot {
     }
   }
 
+  // This function loops through all of the bid orders and updates their corresponding orders and replaces missing orders.
   async replaceBids(bidsSorted: any, startingBidPrice: number){
     console.log("REPLACE BIDS: ",bidsSorted.length, "startingBidPrice:", startingBidPrice);
     let quoteAvail = parseFloat(this.contracts[this.quote].portfolioAvail);
@@ -338,6 +346,7 @@ class MarketMakerBot extends AbstractBot {
     }
   }
 
+  // This function loops through all of the ask orders and updates their corresponding orders and replaces missing orders.
   async replaceAsks (asksSorted: any, startingAskPrice: number){
     console.log("REPLACE ASKS: ",asksSorted.length, "startingAskPrice:", startingAskPrice);
     let baseAvail = parseFloat(this.contracts[this.base].portfolioAvail);
@@ -381,7 +390,7 @@ class MarketMakerBot extends AbstractBot {
   }
 
   // Takes in price, side, level, and availableFunds. Returns amount to place.
-  // If there are enough availableFunds, it will return the intended amount according to configs, otherwise it will return as much as it can, otherwise it will return 0
+  // If there are enough availableFunds, it will return the intended amount according to configs, otherwise it will return as much as it can. If there is not enough funds to place an order it will return 0
   getQty(price: BigNumber, side: number, level: number, availableFunds: number): number {
     if (side === 0){
       console.log("AVAILABLE FUNDS IN QUOTE BID: ",availableFunds, "AMOUNT: ",this.getLevelQty(level))
@@ -402,15 +411,18 @@ class MarketMakerBot extends AbstractBot {
     }
   }
 
+
+  // returns amount to place for given order level in base asset
   getLevelQty(level:number):number{
     return parseFloat(this.flatAmount) + (parseFloat(this.orderLevelQty) * (level-1));
   }
 
+  // returns % away from market price to place order
   getSpread(level:number):number{
     return (level*parseFloat(this.orderLevelSpread))
   }
 
-  // Update the marketPrice from an outside source
+  // Update the marketPrice from price feed bot
   async getNewMarketPrice() {
     try {
       let response = await axios.get('http://localhost:3000/prices');
@@ -436,6 +448,7 @@ class MarketMakerBot extends AbstractBot {
     return this.marketPrice;
   }
 
+  // not used
   getPrice(side: number): BigNumber {
     return this.marketPrice;
   }
@@ -450,6 +463,7 @@ class MarketMakerBot extends AbstractBot {
     return alotprice;
   }
 
+  // NOT USED
   getBaseCapital(): number {
     if (this.baseUsd) {
       return parseFloat((this.capitalASideUSD / this.baseUsd).toFixed(this.baseDisplayDecimals));
@@ -458,6 +472,7 @@ class MarketMakerBot extends AbstractBot {
     }
   }
 
+  // NOT USED
   getQuoteCapital(): number {
     if (this.quoteUsd) {
       return parseFloat((this.capitalASideUSD / this.quoteUsd).toFixed(this.quoteDisplayDecimals));
@@ -466,6 +481,7 @@ class MarketMakerBot extends AbstractBot {
     }
   }
 
+  // returns one tick based on quoteDisplayDecimals
   getIncrement(): number {
     let increment = 1 / (Math.pow(10,this.quoteDisplayDecimals));
     return increment;
