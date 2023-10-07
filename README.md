@@ -1,4 +1,4 @@
-# Beastlorion's Custom Dexalot Bots
+# Beastlorion's Dexalot MarketMaker
 
 ## Setup
 ```
@@ -6,14 +6,13 @@ nvm install 16.15.1
 yarn install
 ```
 
-You will need funds to trade.
-
 You can get AVAX from fuji faucet and sell your avax against USDC at Dexalot Fuji at https://app.dexalot-test.com
 if you need more USDC please contact the Dexalot Team.
 
-config parameters are declared in .env.production for production or .env.fuji for testnet
-Paste this into your .env.fuji with your private key and address. PLEASE USE A TEST WALLET.
+Config parameters are declared in .env.production for production or .env.fuji for testnet.
 For production, I recommend using a secrets manager for your wallet's private key for enhanced security. Also if you're using a remote server, which you probably should be, you should whitelist the IP that you will be connecting to it from.
+
+Paste this into your .env.fuji with your private key and address. PLEASE USE A TEST WALLET.
 
 ```
 { "bot_id" : "100",
@@ -52,7 +51,7 @@ Examples of other markets:
 ```
 
 ## To run
-- You will need to start a price_feeds instance which serves price data to a local port: (My price feeds: https://github.com/Beastlorion/dexalotBot_price_feeds)
+- You will need to start a price_feeds instance which serves price data to a local port: https://github.com/Beastlorion/dexalotBot_price_feeds
 - You can edit the price calculations there if you'd like.
 - Once that is running on the same machine, run one of the following:
 
