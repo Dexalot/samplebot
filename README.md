@@ -100,6 +100,7 @@ This bot is an alternative to MarketMakerBot. The key difference is instead of r
 Pros:
 - Uses far fewer calls, which is good for avoiding rate limitting. (If you're serious about this you'll want to start your own rpc node for unlimitted rpc calls. You can add a custom rpc url to the config file)
 - The logic is much simpler and easier to understand.
+
 Cons:
 - Your orders will be off the books for about 8-12 seconds while it is waiting to get confirmation from transactions processing.
 - I don't actively use this version, so there may still be some bugs that need to be worked out.
