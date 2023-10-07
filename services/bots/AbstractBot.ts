@@ -206,7 +206,7 @@ abstract class AbstractBot {
         await this.getTokenDetails();
 
         this.contracts["MainnetProvider"] = { provider: this.getProvider(this.getEnvironment("mainnet").chain_instance), nonce: 0 };
-        if (getConfig("NODE_ENV_SETTINGS") == "production"){
+        if (getConfig("NODE_ENV_SETTINGS") == "production" && getConfig("rpc_url")){
           this.contracts["SubNetProvider"] = {
             provider: this.getProvider(getConfig("rpc_url"), this.ratelimit_token),
             nonce: 0
@@ -1808,7 +1808,7 @@ abstract class AbstractBot {
         if (alot.subnetBal < 10) {
           deposit_amount = (10 - alot.subnetBal).toFixed(5);
           if (alot.portfolioAvail > 10) {
-            await this.withdrawNative(this.contracts["Portfoliosub"].deployedContract, deposit_amount, alot.tokenDetails.evmdecimals);
+            await this.depositNative(this.contracts["Portfoliosub"].deployedContract, deposit_amount, alot.tokenDetails.evmdecimals);
           } else {
             await this.depositToken(alot.deployedContract, alot.inByte32, alot.tokenDetails.evmdecimals, deposit_amount);
           }

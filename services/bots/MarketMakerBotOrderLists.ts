@@ -45,12 +45,8 @@ class MarketMakerBot extends AbstractBot {
     const initializing = await super.initialize();
     if (initializing) {
       await this.getNewMarketPrice();
-      // await this.getBestOrders();
 
       this.interval = 15000; //Min 10 seconds
-
-      // PNL  TO KEEP TRACK OF PNL , FEE & TCOST  etc
-      //this.PNL = new PNL(getConfig('NODE_ENV_SETTINGS'), this.instanceName, this.base, this.quote, this.config, this.account);
 
       return true;
     } else {
@@ -110,22 +106,22 @@ class MarketMakerBot extends AbstractBot {
         this.lastUpdate = Date.now();
         this.timer = this.interval;
         console.log("000000000000000 COUNTER:",this.orderUpdaterCounter);
-
-        // having issues with nonces when avax/usdc and avax/usdt send orders at the same time. This gives priority to avaxusdc
-        if (this.tradePairIdentifier == "AVAX/USDt"){
-          await utils.sleep(500);
-        }
         
+        // Refresh orders, balances, and get new best bid and ask prices
         await Promise.all([this.correctNonce(this.contracts["SubNetProvider"]),this.processOpenOrders(),this.getBalances(),this.getBestOrders()]);
+
+        // Cancel all orders, when finished, trigger the new order placement.
         const promise = Promise.resolve(this.cancelOrderList([], 100));
+
         if (this.baseUsd && this.quoteUsd){
-          // ------------ Create and Send Initial Order List ------------ //
+          // ------------ Create new Order List ------------ //
           let levels : number[][] = [];
           for (let i = 1; i <= this.orderLevels; i++){
             levels.push([0,i]);
             levels.push([1,i]);
           }
 
+          // Gets all order records
           let bids: any[] = []; 
           let asks: any[] = [];
           let duplicates: any[] = [];
@@ -160,6 +156,7 @@ class MarketMakerBot extends AbstractBot {
             }
           });
         
+          // This code finds how much funds are currently on open orders which you're cancelling so that it can determine how much is available for new orders
           let onBids = 0;
           let onAsks = 0;
           for (let i = 0; i < bids.length;i++){
@@ -172,6 +169,7 @@ class MarketMakerBot extends AbstractBot {
             let amountOnOrder = (order.quantity.toNumber()-order.quantityfilled.toNumber()) * 0.999;
             onAsks+= amountOnOrder;
           }
+          // finally, we correct the nonce one last time and then create and send the new orders
           promise.then(async()=>{
             await this.correctNonce(this.contracts["SubNetProvider"])
             await this.placeInitialOrders(levels, parseFloat(this.contracts[this.quote].portfolioAvail) + onBids, parseFloat(this.contracts[this.base].portfolioAvail) + onAsks);
@@ -247,90 +245,6 @@ class MarketMakerBot extends AbstractBot {
     }
     
     this.lastUpdate = Date.now();
-  }
-
-  async replaceBids(bidsSorted: any, startingBidPrice: number){
-    console.log("REPLACE BIDS: ",bidsSorted.length);
-    let quoteAvail = parseFloat(this.contracts[this.quote].portfolioAvail);
-    for (let i = 0; i < this.orderLevels; i ++){
-      let order = {id:null, status:null, quantity:new BigNumber(0),quantityfilled:new BigNumber(0), level:0, price: new BigNumber(0)};
-      for (let j = 0; j < bidsSorted.length; j++){
-        if (bidsSorted[j].level == i+1){
-          order = bidsSorted[j];
-        }
-      }
-
-      if (order.id){
-        let bidPrice = new BigNumber((startingBidPrice * (1-this.getSpread(i))).toFixed(this.quoteDisplayDecimals));
-        let amountOnOrder = (order.quantity.toNumber()-order.quantityfilled.toNumber())*order.price.toNumber() * 0.999;
-        let availableFunds = quoteAvail + amountOnOrder;
-        let bidQty = new BigNumber(this.getQty(bidPrice,0,i+1,availableFunds));
-        let amountToPlace = bidQty;
-        if (availableFunds/bidPrice.toNumber() < amountToPlace.toNumber()){
-          amountToPlace = new BigNumber((availableFunds/bidPrice.toNumber())*.999);
-        }
-        if (amountToPlace.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
-          console.log("REPLACE ORDER:",amountToPlace.toNumber(),bidQty.toNumber(), i+1);
-          quoteAvail -= bidQty.toNumber() * bidPrice.toNumber() - amountOnOrder
-          this.cancelReplaceOrder(order,bidPrice,amountToPlace);
-        } else {
-          console.log("NOT ENOUGH FUNDS TO REPLACE", bidQty.toNumber() * bidPrice.toNumber(), quoteAvail, availableFunds, amountOnOrder, amountToPlace.toNumber());
-          this.cancelOrder(order);
-        }
-      } else {
-        //set aside funds to create new orders
-        let amount = this.getLevelQty(i+1) * startingBidPrice;
-        if (amount < quoteAvail){
-          quoteAvail -= amount;
-          this.placeInitialOrders([[0,i+1]],amount,);
-        } else {
-          this.placeInitialOrders([[0,i+1]],quoteAvail,);
-          quoteAvail = 0;
-        }
-      }
-    }
-  }
-
-  async replaceAsks (asksSorted: any, startingAskPrice: number){
-    console.log("REPLACE ASKS: ",asksSorted.length);
-    let baseAvail = parseFloat(this.contracts[this.base].portfolioAvail);
-
-    for (let i = 0; i < this.orderLevels; i ++){
-      let order = {id:null, status:null, quantity:new BigNumber(0),quantityfilled:new BigNumber(0), level:0};
-      for (let j = 0; j < asksSorted.length; j++){
-        if (asksSorted[j].level == i+1){
-          order = asksSorted[j];
-        }
-      }
-      if (order.id){
-        let amountOnOrder = (order.quantity.toNumber()-order.quantityfilled.toNumber()) * .999;
-        let availableFunds = baseAvail + amountOnOrder;
-
-        let askPrice = new BigNumber((startingAskPrice * (1+this.getSpread(i))).toFixed(this.quoteDisplayDecimals));
-        let askQty = new BigNumber(this.getQty(askPrice,1,i+1,availableFunds));
-        let amountToPlace = askQty;
-        if (availableFunds < askQty.toNumber()){
-          amountToPlace = new BigNumber(availableFunds * .999);
-        }
-        baseAvail -= askQty.toNumber() - amountOnOrder;
-        if (amountToPlace.toNumber() * askPrice.toNumber() > this.minTradeAmnt){
-          console.log("REPLACE ORDER:",askPrice.toNumber(),amountToPlace.toNumber(), i+1);
-          this.cancelReplaceOrder(order,askPrice,amountToPlace);
-        } else {
-          console.log("NOT ENOUGH FUNDS TO REPLACE", amountToPlace.toNumber(), availableFunds);
-          this.cancelOrder(order);
-        }
-      } else {
-        let amount = this.getLevelQty(i+1) * 1.01;
-        if (amount < baseAvail){
-          this.placeInitialOrders([[1,i+1]],undefined,amount);
-          baseAvail -= amount;
-        } else {
-          this.placeInitialOrders([[1,i+1]],undefined,baseAvail);
-          baseAvail = 0;
-        }
-      }
-    }
   }
 
   // Takes in price, side, level, and availableFunds. Returns amount to place.
