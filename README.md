@@ -55,24 +55,28 @@ Examples of other markets:
 - You can edit the price calculations there if you'd like.
 - Once that is running on the same machine, run one of the following with your pair of choice:
 
+MarketMakerLists (RECOMMENDED for beginners)
 Fuji Testnet:
-```
-yarn marketMaker-fuji --pair="AVAX/USDC"
-```
-or 
 ```
 yarn marketMakerLists-fuji --pair="AVAX/USDC"
 ```
 
-
 Production:
-```
-yarn marketMaker-prod --pair="AVAX/USDC"
-```
-or
 ```
 yarn marketMakerLists-prod --pair="AVAX/USDC"
 ```
+
+Alternatively, if you have a custom rpc node, use this version to keep your orders active at all times:
+Fuji Testnet:
+```
+yarn marketMakerLists-fuji --pair="AVAX/USDC"
+```
+
+Production:
+```
+yarn marketMakerLists-prod --pair="AVAX/USDC"
+```
+
 
 ## Abstract Class Flow
 AbstractBot performs various functions:
@@ -102,16 +106,17 @@ MarketMakerBot extends the AbstractBot implementation. It holds the main logic f
 - If the conditions for a taker trade are not met, it will begin refreshing the prices and quantities of the orders for the pair taking care to avoid PostOnly trade conflicts.
 - When it is finished it will set a timer and then begin calling orderUpdater() again.
 
-## MarketMakerBotOrderLists (Use this if you do not have your own rpc node)
+## MarketMakerBotOrderLists (Recommended if not using your own rpc node)
 This bot is an alternative to MarketMakerBot. The key difference is instead of replacing individual orders, it will cancel all of the active orders in one call, wait for confirmation, and then place all fresh orders in one call.
 
 Pros:
 - Uses far fewer calls, which is good for avoiding rate limitting. (If you're serious about this you'll want to start your own rpc node for unlimitted rpc calls. You can add a custom rpc url to the config file)
 - The logic is much simpler and easier to understand.
-- Allows for many orders for each pair with lower likelihood of nonce conflicts. You could have 10 or more bids and sells active for each market.
+- Allows for many orders for each pair with lower likelihood of errors. You could have 10 or more bids and sells active for each market.
 
 Cons:
 - Your orders will be off the books for about 6-8 seconds each time they need to be cancelled and replaced.
+- Currently does not have taker orders enabled.
 
 ## DISCLAIMER
 
