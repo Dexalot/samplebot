@@ -69,12 +69,12 @@ yarn marketMakerLists-prod --pair="AVAX/USDC"
 Alternatively, if you have a custom rpc node, use this version to keep your orders active at all times:
 Fuji Testnet:
 ```
-yarn marketMakerLists-fuji --pair="AVAX/USDC"
+yarn marketMaker-fuji --pair="AVAX/USDC"
 ```
 
 Production:
 ```
-yarn marketMakerLists-prod --pair="AVAX/USDC"
+yarn marketMaker-prod --pair="AVAX/USDC"
 ```
 
 
