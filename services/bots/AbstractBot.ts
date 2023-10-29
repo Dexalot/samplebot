@@ -212,6 +212,7 @@ abstract class AbstractBot {
             nonce: 0
           };
         } else {
+          console.log("Use default subnetProvider")
           this.contracts["SubNetProvider"] = {
             provider: this.getProvider(this.getEnvironment("subnet").chain_instance, this.ratelimit_token),
             nonce: 0
