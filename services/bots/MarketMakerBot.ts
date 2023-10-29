@@ -331,12 +331,12 @@ class MarketMakerBot extends AbstractBot {
 
       if (order.id){
         let bidPrice = new BigNumber((startingBidPrice * (1-this.getOrderLevelSpread(i))).toFixed(this.quoteDisplayDecimals));
-        let amountOnOrder = (order.quantity.toNumber()-order.quantityfilled.toNumber())*order.price.toNumber() * 0.999;
+        let amountOnOrder = (order.quantity.toNumber()-order.quantityfilled.toNumber())*order.price.toNumber() * 0.9999;
         let availableFunds = quoteAvail + amountOnOrder;
         let bidQty = new BigNumber(this.getQty(bidPrice,0,i+1,availableFunds));
         let amountToPlace = bidQty;
         if (availableFunds/bidPrice.toNumber() < amountToPlace.toNumber()){
-          amountToPlace = new BigNumber((availableFunds/bidPrice.toNumber())*.999);
+          amountToPlace = new BigNumber((availableFunds/bidPrice.toNumber())*.9999);
         }
         if (amountToPlace.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
           console.log("REPLACE ORDER:",bidPrice.toNumber(),bidQty.toNumber(), i+1);
@@ -373,14 +373,14 @@ class MarketMakerBot extends AbstractBot {
         }
       }
       if (order.id){
-        let amountOnOrder = (order.quantity.toNumber()-order.quantityfilled.toNumber()) * .999;
+        let amountOnOrder = (order.quantity.toNumber()-order.quantityfilled.toNumber()) * .9999;
         let availableFunds = baseAvail + amountOnOrder;
 
         let askPrice = new BigNumber((startingAskPrice * (1+this.getOrderLevelSpread(i))).toFixed(this.quoteDisplayDecimals));
         let askQty = new BigNumber(this.getQty(askPrice,1,i+1,availableFunds));
         let amountToPlace = askQty;
         if (availableFunds < askQty.toNumber()){
-          amountToPlace = new BigNumber(availableFunds * .999);
+          amountToPlace = new BigNumber(availableFunds * .9999);
         }
         baseAvail -= askQty.toNumber() - amountOnOrder;
         if (amountToPlace.toNumber() * askPrice.toNumber() > this.minTradeAmnt){
@@ -411,14 +411,14 @@ class MarketMakerBot extends AbstractBot {
       if (this.getLevelQty(level) < availableFunds/price.toNumber()){
         return this.getLevelQty(level);
       } else if (availableFunds > this.minTradeAmnt * 2){
-        return availableFunds/price.toNumber() * .999;
+        return availableFunds/price.toNumber() * .9999;
       } else { return 0;}
     } else if (side === 1) {
       console.log("AVAILABLE FUNDS ASK: ",availableFunds, "AMOUNT: ",this.getLevelQty(level))
       if (this.getLevelQty(level) < availableFunds){
           return this.getLevelQty(level);
       } else if (availableFunds * price.toNumber() > this.minTradeAmnt * 2){
-        return availableFunds * .999;
+        return availableFunds * .9999;
       } else {return 0;}
     } else { 
       return 0; // function declaration requires I return a number
