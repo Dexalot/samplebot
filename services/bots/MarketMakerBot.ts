@@ -328,7 +328,7 @@ class MarketMakerBot extends AbstractBot {
         let bidQty = new BigNumber(this.getQty(bidPrice,0,i+1,availableFunds));
         let amountToPlace = bidQty;
         if (availableFunds/bidPrice.toNumber() < amountToPlace.toNumber()){
-          amountToPlace = new BigNumber((availableFunds/bidPrice.toNumber())*.9999);
+          amountToPlace = new BigNumber((availableFunds/bidPrice.toNumber())*.999);
         }
         if (amountToPlace.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
           console.log("REPLACE ORDER:",bidPrice.toNumber(),bidQty.toNumber(), i+1);
@@ -372,7 +372,7 @@ class MarketMakerBot extends AbstractBot {
         let askQty = new BigNumber(this.getQty(askPrice,1,i+1,availableFunds));
         let amountToPlace = askQty;
         if (availableFunds < askQty.toNumber()){
-          amountToPlace = new BigNumber(availableFunds * .9999);
+          amountToPlace = new BigNumber(availableFunds * .999);
         }
         baseAvail -= askQty.toNumber() - amountOnOrder;
         if (amountToPlace.toNumber() * askPrice.toNumber() > this.minTradeAmnt){
