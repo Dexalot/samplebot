@@ -23,9 +23,10 @@ class MarketMakerBot extends AbstractBot {
   protected takerEnabled: any;
   protected timer: any;
   protected lastBaseUsd: any;
-  protected lastUpdate: any;
+  protected lastUpdate = 0;
   protected defensiveSkew: any;
   protected defensiveSkewMax: any;
+  protected lastChange = 0;
 
   constructor(botId: number, pairStr: string, privateKey: string) {
     super(botId, pairStr, privateKey);
@@ -42,7 +43,6 @@ class MarketMakerBot extends AbstractBot {
     this.takerSpread = this.config.takerSpread/100;
     this.takerEnabled = this.config.takerEnabled;
     this.defensiveSkew = this.config.defensiveSkew/100;
-    this.lastUpdate = 0;
   }
 
   async saveBalancestoDb(balancesRefreshed: boolean): Promise<void> {
@@ -127,15 +127,11 @@ class MarketMakerBot extends AbstractBot {
         
         // updates balances, gets best bids and asks, and corrects the nonce
         await Promise.all([this.getBalances(),this.getBestOrders(),this.correctNonce(this.contracts["SubNetProvider"]),this.processOpenOrders()]);
-        let change = Math.abs(this.marketPrice.toNumber()-this.lastMarketPrice.toNumber())/this.marketPrice.toNumber();
-        let bidSpread = this.getBidSpread(parseFloat(this.contracts[this.base].portfolioTot)*this.marketPrice.toNumber()/parseFloat(this.contracts[this.quote].portfolioTot),change);
-        let askSpread = this.getAskSpread(parseFloat(this.contracts[this.base].portfolioTot)*this.marketPrice.toNumber()/parseFloat(this.contracts[this.quote].portfolioTot),change);
-        console.log("bidSpread: ", bidSpread)
-        console.log("askSpread: ", askSpread)
+        this.lastChange = Math.abs(this.marketPrice.toNumber()-this.lastMarketPrice.toNumber())/this.marketPrice.toNumber();
         
-        let startingBidPriceBG = this.marketPrice.multipliedBy(1-bidSpread).dp(this.quoteDisplayDecimals, BigNumber.ROUND_DOWN);
+        let startingBidPriceBG = this.marketPrice.multipliedBy(1-this.getBidSpread()).dp(this.quoteDisplayDecimals, BigNumber.ROUND_DOWN);
         let startingBidPrice = startingBidPriceBG.toNumber();
-        let startingAskPriceBG = this.marketPrice.multipliedBy(1+askSpread).dp(this.quoteDisplayDecimals,BigNumber.ROUND_UP);
+        let startingAskPriceBG = this.marketPrice.multipliedBy(1+this.getAskSpread()).dp(this.quoteDisplayDecimals,BigNumber.ROUND_UP);
         let startingAskPrice = startingAskPriceBG.toNumber();
 
         // if the bid and ask are the same price, increase the ask by one tick
@@ -266,13 +262,9 @@ class MarketMakerBot extends AbstractBot {
   // For each subarray passed in, it creates a new order and adds it to newOrderList. At the end it calls addLimitOrderList with the newOrderList
   async placeInitialOrders(levels: number[][], availableQuote: number = this.contracts[this.quote].portfolioAvail, availableBase: number = this.contracts[this.base].portfolioAvail){
     console.log("PLACING INITAL ORDERS: ",levels);
-    let bidSpread = this.getBidSpread(availableBase*this.marketPrice.toNumber()/availableQuote,0);
-    let askSpread = this.getAskSpread(availableBase*this.marketPrice.toNumber()/availableQuote,0);
-    console.log("bidSpread: ", bidSpread)
-    console.log("askSpread: ", askSpread)
 
-    let initialBidPrice = parseFloat((this.marketPrice.toNumber() * (1-bidSpread)).toFixed(this.quoteDisplayDecimals));
-    let initialAskPrice = parseFloat((this.marketPrice.toNumber() * (1+askSpread)).toFixed(this.quoteDisplayDecimals));
+    let initialBidPrice = parseFloat((this.marketPrice.toNumber() * (1-this.getBidSpread())).toFixed(this.quoteDisplayDecimals));
+    let initialAskPrice = parseFloat((this.marketPrice.toNumber() * (1+this.getAskSpread())).toFixed(this.quoteDisplayDecimals));
 
     initialBidPrice = this.currentBestAsk && this.currentBestAsk <= initialBidPrice ? this.currentBestAsk - this.getIncrement() : initialBidPrice;
     initialAskPrice = this.currentBestBid && this.currentBestBid >= initialAskPrice ? this.currentBestBid + this.getIncrement() : initialAskPrice;
@@ -436,29 +428,35 @@ class MarketMakerBot extends AbstractBot {
     return (level*parseFloat(this.orderLevelSpread))
   }
 
-  getBidSpread(multiple:number,change:number):number{
+  getBidSpread():number{
     let slip = 0;
-    if (change > this.refreshOrderTolerance * 2){
-      slip = change - this.refreshOrderTolerance;
+    if (this.lastChange > this.refreshOrderTolerance * 2){
+      slip = this.lastChange - this.refreshOrderTolerance;
     }
     let defensiveSkew = 0;
+    let multiple = parseFloat(this.contracts[this.base].portfolioTot)*this.marketPrice.toNumber()/parseFloat(this.contracts[this.quote].portfolioTot);
     if (multiple >= 2 && this.defensiveSkew){
       defensiveSkew = multiple < 6 ? this.defensiveSkew * Math.floor(multiple-1) : this.defensiveSkew * 5
     }
-    return this.bidSpread + defensiveSkew + slip;
+    let bidSpread = this.bidSpread + defensiveSkew + slip;
+    console.log("Bid Spread:",bidSpread);
+    return bidSpread;
   }
 
-  getAskSpread(multiple:number,change:number):number{
+  getAskSpread():number{
     let slip = 0;
-    if (change > this.refreshOrderTolerance * 2){
-      slip = change - this.refreshOrderTolerance;
+    if (this.lastChange > this.refreshOrderTolerance * 2){
+      slip = this.lastChange - this.refreshOrderTolerance;
     }
     let defensiveSkew = 0;
+    let multiple = parseFloat(this.contracts[this.base].portfolioTot)*this.marketPrice.toNumber()/parseFloat(this.contracts[this.quote].portfolioTot);
     if (1/multiple > 2 && this.defensiveSkew){
       multiple = 1/multiple;
       defensiveSkew = multiple < 6 ? this.defensiveSkew * Math.floor(multiple-1) : this.defensiveSkew * 5
     }
-    return this.askSpread + defensiveSkew + slip;
+    let askSpread = this.askSpread + defensiveSkew + slip;
+    console.log("Bid Spread:",askSpread);
+    return askSpread;
   }
 
   // Update the marketPrice from price feed bot
