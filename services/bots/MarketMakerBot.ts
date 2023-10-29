@@ -127,9 +127,9 @@ class MarketMakerBot extends AbstractBot {
         
         // updates balances, gets best bids and asks, and corrects the nonce
         await Promise.all([this.getBalances(),this.getBestOrders(),this.correctNonce(this.contracts["SubNetProvider"]),this.processOpenOrders()]);
-        
-        let bidSpread = this.getBidSpread(parseFloat(this.contracts[this.base].portfolioTot)*this.marketPrice.toNumber()/parseFloat(this.contracts[this.quote].portfolioTot));
-        let askSpread = this.getAskSpread(parseFloat(this.contracts[this.base].portfolioTot)*this.marketPrice.toNumber()/parseFloat(this.contracts[this.quote].portfolioTot));
+        let change = Math.abs(this.marketPrice.toNumber()-this.lastMarketPrice.toNumber())/this.marketPrice.toNumber();
+        let bidSpread = this.getBidSpread(parseFloat(this.contracts[this.base].portfolioTot)*this.marketPrice.toNumber()/parseFloat(this.contracts[this.quote].portfolioTot),change);
+        let askSpread = this.getAskSpread(parseFloat(this.contracts[this.base].portfolioTot)*this.marketPrice.toNumber()/parseFloat(this.contracts[this.quote].portfolioTot),change);
         console.log("bidSpread: ", bidSpread)
         console.log("askSpread: ", askSpread)
         
@@ -266,8 +266,8 @@ class MarketMakerBot extends AbstractBot {
   // For each subarray passed in, it creates a new order and adds it to newOrderList. At the end it calls addLimitOrderList with the newOrderList
   async placeInitialOrders(levels: number[][], availableQuote: number = this.contracts[this.quote].portfolioAvail, availableBase: number = this.contracts[this.base].portfolioAvail){
     console.log("PLACING INITAL ORDERS: ",levels);
-    let bidSpread = this.getBidSpread(availableBase*this.marketPrice.toNumber()/availableQuote);
-    let askSpread = this.getAskSpread(availableBase*this.marketPrice.toNumber()/availableQuote);
+    let bidSpread = this.getBidSpread(availableBase*this.marketPrice.toNumber()/availableQuote,0);
+    let askSpread = this.getAskSpread(availableBase*this.marketPrice.toNumber()/availableQuote,0);
     console.log("bidSpread: ", bidSpread)
     console.log("askSpread: ", askSpread)
 
@@ -436,21 +436,29 @@ class MarketMakerBot extends AbstractBot {
     return (level*parseFloat(this.orderLevelSpread))
   }
 
-  getBidSpread(multiple:number):number{
+  getBidSpread(multiple:number,change:number):number{
+    let slip = 0;
+    if (change > this.refreshOrderTolerance * 2){
+      slip = change - this.refreshOrderTolerance;
+    }
     let defensiveSkew = 0;
     if (multiple >= 2 && this.defensiveSkew){
       defensiveSkew = multiple < 6 ? this.defensiveSkew * Math.floor(multiple-1) : this.defensiveSkew * 5
     }
-    return this.bidSpread + defensiveSkew;
+    return this.bidSpread + defensiveSkew + slip;
   }
 
-  getAskSpread(multiple:number):number{
+  getAskSpread(multiple:number,change:number):number{
+    let slip = 0;
+    if (change > this.refreshOrderTolerance * 2){
+      slip = change - this.refreshOrderTolerance;
+    }
     let defensiveSkew = 0;
     if (1/multiple > 2 && this.defensiveSkew){
       multiple = 1/multiple;
       defensiveSkew = multiple < 6 ? this.defensiveSkew * Math.floor(multiple-1) : this.defensiveSkew * 5
     }
-    return this.askSpread + defensiveSkew;
+    return this.askSpread + defensiveSkew + slip;
   }
 
   // Update the marketPrice from price feed bot

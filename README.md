@@ -32,7 +32,8 @@ Paste this into your .env.fuji with your private key and address. PLEASE USE A T
     "orderLevels" : "2",
     "orderLevelSpread" : "0.30",
     "orderLevelQty" : "0.5",
-    "refreshOrderTolerance" : "0.05"
+    "refreshOrderTolerance" : "0.05",
+    "defensiveSkew" : "0.5"
     }
 }
 ```
