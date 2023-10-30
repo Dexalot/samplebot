@@ -742,12 +742,11 @@ abstract class AbstractBot {
             }, 2000)
           }
         } else {
-          // this.logger.error(
-          //   `${this.instanceName} addOrder error: ${side === 0 ? "BUY" : "SELL"}  ${quantity ? quantity.toString() : "undefined"} @ ${
-          //     price ? price.toString() : "undefined"
-          //   }`,
-          //   error
-          // );
+          this.logger.warn(
+            `${this.instanceName} addOrder error: ${side === 0 ? "BUY" : "SELL"}  ${quantity ? quantity.toString() : "undefined"} @ ${
+              price ? price.toString() : "undefined"
+            } Revert Reason ${reason}`
+          );
         }
       }
     }

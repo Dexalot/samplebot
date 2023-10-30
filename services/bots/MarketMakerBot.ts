@@ -297,15 +297,8 @@ class MarketMakerBot extends AbstractBot {
     }
 
   //   // --------------- EXECUTE ORDERS --------------- //
-    if (newOrderList.length == 0){
-    } else if (newOrderList.length == 1){
-      if (this.status){
-        this.addOrder(newOrderList[0].side,newOrderList[0].quantity,newOrderList[0].price,1,3,newOrderList[0].level);
-      }
-    } else {
-      if (this.status){
-        this.addLimitOrderList(newOrderList);
-      }
+    if (this.status && newOrderList.length > 0){
+      this.addLimitOrderList(newOrderList);
     }
   }
 
@@ -455,7 +448,7 @@ class MarketMakerBot extends AbstractBot {
       defensiveSkew = multiple < 6 ? this.defensiveSkew * Math.floor(multiple-1) : this.defensiveSkew * 5
     }
     let askSpread = this.askSpread + defensiveSkew + slip;
-    console.log("Bid Spread:",askSpread);
+    console.log("Ask Spread:",askSpread);
     return askSpread;
   }
 
