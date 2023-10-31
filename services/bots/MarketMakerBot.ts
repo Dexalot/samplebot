@@ -27,6 +27,7 @@ class MarketMakerBot extends AbstractBot {
   protected defensiveSkew: any;
   protected defensiveSkewMax: any;
   protected lastChange = 0;
+  protected retrigger = false;
 
   constructor(botId: number, pairStr: string, privateKey: string) {
     super(botId, pairStr, privateKey);
@@ -112,10 +113,11 @@ class MarketMakerBot extends AbstractBot {
     }
 
     try {
-      if (this.status && ((Date.now() - this.lastUpdate)/1000 > 600 || this.marketPrice.toNumber()<this.lastMarketPrice.toNumber()*(1-parseFloat(this.refreshOrderTolerance)) || this.marketPrice.toNumber()>this.lastMarketPrice.toNumber()*(1+parseFloat(this.refreshOrderTolerance)))){
+      if (this.status && (this.retrigger || (Date.now() - this.lastUpdate)/1000 > 600 || this.marketPrice.toNumber()<this.lastMarketPrice.toNumber()*(1-parseFloat(this.refreshOrderTolerance)) || this.marketPrice.toNumber()>this.lastMarketPrice.toNumber()*(1+parseFloat(this.refreshOrderTolerance)))){
         this.orderUpdaterCounter ++;
         this.lastUpdate = Date.now();
         this.timer = this.interval;
+        this.retrigger = false;
         console.log("000000000000000 COUNTER:",this.orderUpdaterCounter);
 
         // Uncomment the following when running both avax markets on the same wallet at the same time to avoid nonce errors because avax/usdc and avax/usdt tend to send orders at the same time. This gives priority to avaxusdc
@@ -206,7 +208,8 @@ class MarketMakerBot extends AbstractBot {
           let bidPrice = new BigNumber(takerBidPrice);
           console.log("TAKER BUY,",bidAmount,"at: ",bidPrice);
           await this.addOrder(0,bidAmount,bidPrice,1,2,0);
-          this.lastMarketPrice = new BigNumber(0);
+          this.lastMarketPrice = this.marketPrice;
+          this.retrigger = true;
 
         } else if (this.takerEnabled && currentBestBid && takerAskPrice < currentBestBid && parseFloat(this.contracts[this.base].portfolioTot) * takerBidPrice > this.minTradeAmnt){ // taker ask
           await this.cancelOrderList([]);
@@ -220,7 +223,8 @@ class MarketMakerBot extends AbstractBot {
           let askPrice = new BigNumber(takerAskPrice);
           console.log("TAKER SELL,",askAmount,"at: ",askPrice);
           await this.addOrder(1,askAmount,askPrice,1,2,0);
-          this.lastMarketPrice = new BigNumber(0);
+          this.lastMarketPrice = this.marketPrice;
+          this.retrigger = true;
 
         } else if (currentBestAsk && startingBidPrice >= currentBestAsk){ // adjust prices if startingBidPrice is higher than the bestAsk. Then replace all orders.
 
@@ -229,6 +233,7 @@ class MarketMakerBot extends AbstractBot {
 
           await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
           this.lastMarketPrice = this.marketPrice;
+          this.retrigger = true;
 
         } else if (currentBestBid && startingAskPrice <= currentBestBid){ // adjust prices if startingAskPrice is lower than the bestBid. Then replace all orders.
           let startingAskPriceBG = new BigNumber(currentBestBid + this.getIncrement())
@@ -236,6 +241,7 @@ class MarketMakerBot extends AbstractBot {
 
           await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
           this.lastMarketPrice = this.marketPrice;
+          this.retrigger = true;
 
         } else { // replace all orders
           await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
