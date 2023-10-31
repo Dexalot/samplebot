@@ -27,9 +27,9 @@ class MarketMakerBot extends AbstractBot {
   protected defensiveSkew: any;
   protected defensiveSkewMax: any;
   protected lastChange = 0;
-  protected retrigger = false;
   protected lastBestBid = 0;
   protected lastBestAsk = 0;
+  public retrigger = false;
 
   constructor(botId: number, pairStr: string, privateKey: string) {
     super(botId, pairStr, privateKey);

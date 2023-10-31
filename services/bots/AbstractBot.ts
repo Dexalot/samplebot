@@ -68,6 +68,7 @@ abstract class AbstractBot {
   protected currentBestBid: any;
   protected currentBestAsk: any;
   protected counter: any;
+  protected retrigger = false;
 
   constructor(botId: number, pairStr: string, privateKey: string, ratelimit_token?: string) {
     this.logger = getLogger("Bot");
@@ -1375,7 +1376,7 @@ abstract class AbstractBot {
       return;
     }
     if (tries > 1){
-      this.cancelOrder(order);
+      this.retrigger = true;
       return
     }
 
@@ -1457,6 +1458,8 @@ abstract class AbstractBot {
         if (reason) {
           if (reason == "T-OAEX-01"){
             this.removeOrderFromMap(order);
+          } else if (reason == "T-T2PO-01"){
+            this.retrigger = true;
           } else {
             this.logger.warn(
               `${this.instanceName} Order Cancel/Replace error ${order.side === 0 ? "BUY" : "SELL"} ::: ${quantity.toFixed(
