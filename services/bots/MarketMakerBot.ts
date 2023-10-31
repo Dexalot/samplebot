@@ -148,7 +148,7 @@ class MarketMakerBot extends AbstractBot {
         const currentBestAsk = this.currentBestAsk ? this.currentBestAsk : undefined;
         const currentBestBid = this.currentBestBid ? this.currentBestBid : undefined;
 
-        if (this.retrigger && currentBestAsk == this.lastBestAsk && currentBestBid == this.lastBestBid){ //  if trying to get better order placement, but best order prices haven't changed, exit and try again next round.
+        if (this.retrigger && currentBestAsk == this.lastBestAsk && currentBestBid == this.lastBestBid && startingBidPrice >= currentBestBid && startingAskPrice <= currentBestAsk){ //  if trying to get better order placement, but best order prices haven't changed, exit and try again next round.
           return;
         } else {
           this.lastBestAsk = currentBestAsk;
