@@ -28,6 +28,8 @@ class MarketMakerBot extends AbstractBot {
   protected defensiveSkewMax: any;
   protected lastChange = 0;
   protected retrigger = false;
+  protected lastBestBid = 0;
+  protected lastBestAsk = 0;
 
   constructor(botId: number, pairStr: string, privateKey: string) {
     super(botId, pairStr, privateKey);
@@ -117,7 +119,6 @@ class MarketMakerBot extends AbstractBot {
         this.orderUpdaterCounter ++;
         this.lastUpdate = Date.now();
         this.timer = this.interval;
-        this.retrigger = false;
         console.log("000000000000000 COUNTER:",this.orderUpdaterCounter);
 
         // Uncomment the following when running both avax markets on the same wallet at the same time to avoid nonce errors because avax/usdc and avax/usdt tend to send orders at the same time. This gives priority to avaxusdc
@@ -146,6 +147,13 @@ class MarketMakerBot extends AbstractBot {
         let takerAskPrice = parseFloat((this.marketPrice.toNumber() * (1+this.takerSpread)).toFixed(this.quoteDisplayDecimals));
         const currentBestAsk = this.currentBestAsk ? this.currentBestAsk : undefined;
         const currentBestBid = this.currentBestBid ? this.currentBestBid : undefined;
+
+        if (this.retrigger && currentBestAsk == this.lastBestAsk && currentBestBid == this.lastBestBid){ //  if trying to get better order placement, but best order prices haven't changed, exit and try again next round.
+          return;
+        } else {
+          this.lastBestAsk = currentBestAsk;
+          this.lastBestBid = currentBestBid;
+        }
 
         let bids: any[] = []; 
         let asks: any[] = [];
@@ -246,6 +254,7 @@ class MarketMakerBot extends AbstractBot {
         } else { // replace all orders
           await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
           this.lastMarketPrice = this.marketPrice;
+          this.retrigger = false;
         }
           
         }
