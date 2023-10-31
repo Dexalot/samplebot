@@ -234,15 +234,18 @@ class MarketMakerBot extends AbstractBot {
 
           await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
           this.lastMarketPrice = this.marketPrice;
-          this.retrigger = true;
-
+          if (parseFloat(this.contracts[this.quote].portfolioTot) > this.minTradeAmnt * 2){
+            this.retrigger = true;
+          }
         } else if (currentBestBid && startingAskPrice <= currentBestBid){ // adjust prices if startingAskPrice is lower than the bestBid. Then replace all orders.
           let startingAskPriceBG = new BigNumber(currentBestBid + this.getIncrement())
           startingAskPrice = startingAskPriceBG.dp(this.quoteDisplayDecimals,BigNumber.ROUND_UP).toNumber();
 
           await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
           this.lastMarketPrice = this.marketPrice;
-          this.retrigger = true;
+          if (parseFloat(this.contracts[this.base].portfolioTot) * takerBidPrice > this.minTradeAmnt * 2){
+            this.retrigger = true;
+          }
 
         } else { // replace all orders
           await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
