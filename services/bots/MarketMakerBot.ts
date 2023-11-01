@@ -25,11 +25,10 @@ class MarketMakerBot extends AbstractBot {
   protected lastBaseUsd: any;
   protected lastUpdate = 0;
   protected defensiveSkew: any;
-  protected defensiveSkewMax: any;
+  protected slip: any;
   protected lastChange = 0;
   protected lastBestBid = 0;
   protected lastBestAsk = 0;
-  public retrigger = false;
 
   constructor(botId: number, pairStr: string, privateKey: string) {
     super(botId, pairStr, privateKey);
@@ -46,6 +45,7 @@ class MarketMakerBot extends AbstractBot {
     this.takerSpread = this.config.takerSpread/100;
     this.takerEnabled = this.config.takerEnabled;
     this.defensiveSkew = this.config.defensiveSkew/100;
+    this.slip = this.config.slip;
   }
 
   async saveBalancestoDb(balancesRefreshed: boolean): Promise<void> {
@@ -434,7 +434,7 @@ class MarketMakerBot extends AbstractBot {
 
   getBidSpread():number{
     let slip = 0;
-    if (this.lastChange > this.refreshOrderTolerance * 2){
+    if (this.lastChange > this.refreshOrderTolerance * 2 && this.slip){
       slip = this.lastChange - this.refreshOrderTolerance;
     }
     let defensiveSkew = 0;
@@ -449,7 +449,7 @@ class MarketMakerBot extends AbstractBot {
 
   getAskSpread():number{
     let slip = 0;
-    if (this.lastChange > this.refreshOrderTolerance * 2){
+    if (this.lastChange > this.refreshOrderTolerance * 2 && this.slip){
       slip = this.lastChange - this.refreshOrderTolerance;
     }
     let defensiveSkew = 0;
