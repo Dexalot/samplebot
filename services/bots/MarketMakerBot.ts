@@ -29,6 +29,7 @@ class MarketMakerBot extends AbstractBot {
   protected lastChange = 0;
   protected lastBestBid = 0;
   protected lastBestAsk = 0;
+  protected useRetrigger = false;
 
   constructor(botId: number, pairStr: string, privateKey: string) {
     super(botId, pairStr, privateKey);
@@ -46,6 +47,7 @@ class MarketMakerBot extends AbstractBot {
     this.takerEnabled = this.config.takerEnabled;
     this.defensiveSkew = this.config.defensiveSkew/100;
     this.slip = this.config.slip;
+    this.useRetrigger = this.config.useRetrigger
   }
 
   async saveBalancestoDb(balancesRefreshed: boolean): Promise<void> {
@@ -234,7 +236,7 @@ class MarketMakerBot extends AbstractBot {
 
           await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
           this.lastMarketPrice = this.marketPrice;
-          if (parseFloat(this.contracts[this.quote].portfolioTot) > this.minTradeAmnt * 2){
+          if (parseFloat(this.contracts[this.quote].portfolioTot) > this.minTradeAmnt * 2 && this.useRetrigger){
             this.retrigger = true;
           }
         } else if (currentBestBid && startingAskPrice <= currentBestBid){ // adjust prices if startingAskPrice is lower than the bestBid. Then replace all orders.
@@ -243,7 +245,7 @@ class MarketMakerBot extends AbstractBot {
 
           await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
           this.lastMarketPrice = this.marketPrice;
-          if (parseFloat(this.contracts[this.base].portfolioTot) * takerBidPrice > this.minTradeAmnt * 2){
+          if (parseFloat(this.contracts[this.base].portfolioTot) * takerBidPrice > this.minTradeAmnt * 2 && this.useRetrigger){
             this.retrigger = true;
           }
 
