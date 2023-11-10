@@ -27,8 +27,6 @@ class MarketMakerBot extends AbstractBot {
   protected defensiveSkew: any;
   protected slip: any;
   protected lastChange = 0;
-  protected lastBestBid = 0;
-  protected lastBestAsk = 0;
   protected useRetrigger = false;
 
   constructor(botId: number, pairStr: string, privateKey: string) {
@@ -238,7 +236,7 @@ class MarketMakerBot extends AbstractBot {
           this.lastMarketPrice = this.marketPrice;
           if (parseFloat(this.contracts[this.quote].portfolioTot) > this.minTradeAmnt * 2 && this.useRetrigger){
             this.retrigger = true;
-          }
+          } else {this.retrigger = false;}
         } else if (currentBestBid && startingAskPrice <= currentBestBid){ // adjust prices if startingAskPrice is lower than the bestBid. Then replace all orders.
           let startingAskPriceBG = new BigNumber(currentBestBid + this.getIncrement())
           startingAskPrice = startingAskPriceBG.dp(this.quoteDisplayDecimals,BigNumber.ROUND_UP).toNumber();
@@ -247,7 +245,7 @@ class MarketMakerBot extends AbstractBot {
           this.lastMarketPrice = this.marketPrice;
           if (parseFloat(this.contracts[this.base].portfolioTot) * takerBidPrice > this.minTradeAmnt * 2 && this.useRetrigger){
             this.retrigger = true;
-          }
+          } else {this.retrigger = false;}
 
         } else { // replace all orders
           await Promise.all([this.replaceBids(bidsSorted, startingBidPrice),this.replaceAsks(asksSorted, startingAskPrice)]);
