@@ -435,7 +435,7 @@ class MarketMakerBot extends AbstractBot {
   getBidSpread():number{
     let slip = 0;
     if (this.lastChange > this.refreshOrderTolerance * 2 && this.slip){
-      slip = this.lastChange - this.refreshOrderTolerance;
+      slip = this.lastChange/2;
     }
     let defensiveSkew = 0;
     let multiple = parseFloat(this.contracts[this.base].portfolioTot)*this.marketPrice.toNumber()/parseFloat(this.contracts[this.quote].portfolioTot);
