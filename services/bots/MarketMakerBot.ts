@@ -28,6 +28,8 @@ class MarketMakerBot extends AbstractBot {
   protected slip: any;
   protected lastChange = 0;
   protected useRetrigger = false;
+  protected useIndependentLevels: boolean = false;
+  protected independentLevels: any;
 
   constructor(botId: number, pairStr: string, privateKey: string) {
     super(botId, pairStr, privateKey);
@@ -46,6 +48,9 @@ class MarketMakerBot extends AbstractBot {
     this.defensiveSkew = this.config.defensiveSkew/100;
     this.slip = this.config.slip;
     this.useRetrigger = this.config.useRetrigger
+    this.useIndependentLevels = this.config.useIndependentLevels
+    this.independentLevels = this.config.independentLevels;
+    console.log('this.independentLevels',this.independentLevels)
   }
 
   async saveBalancestoDb(balancesRefreshed: boolean): Promise<void> {
@@ -58,7 +63,7 @@ class MarketMakerBot extends AbstractBot {
       await this.getNewMarketPrice();
       // await this.getBestOrders();
 
-      this.interval = 8000; //Min 8 seconds
+      this.interval = 10000; //Min 8 seconds
 
       // PNL  TO KEEP TRACK OF PNL , FEE & TCOST  etc
       //this.PNL = new PNL(getConfig('NODE_ENV_SETTINGS'), this.instanceName, this.base, this.quote, this.config, this.account);
@@ -326,21 +331,24 @@ class MarketMakerBot extends AbstractBot {
       }
 
       if (order.id){
-        let bidPrice = new BigNumber((startingBidPrice * (1-this.getOrderLevelSpread(i))).toFixed(this.quoteDisplayDecimals));
-        let amountOnOrder = (order.quantity.toNumber()-order.quantityfilled.toNumber())*order.price.toNumber() * 0.9999;
-        let availableFunds = quoteAvail + amountOnOrder;
-        let bidQty = new BigNumber(this.getQty(bidPrice,0,i+1,availableFunds));
-        let amountToPlace = bidQty;
-        if (availableFunds/bidPrice.toNumber() < amountToPlace.toNumber()){
-          amountToPlace = new BigNumber((availableFunds/bidPrice.toNumber())*.999);
-        }
-        if (amountToPlace.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
-          console.log("REPLACE ORDER:",bidPrice.toNumber(),bidQty.toNumber(), i+1);
-          quoteAvail -= bidQty.toNumber() * bidPrice.toNumber() - amountOnOrder
-          this.cancelReplaceOrder(order,bidPrice,amountToPlace);
-        } else {
-          console.log("NOT ENOUGH FUNDS TO REPLACE", bidQty.toNumber() * bidPrice.toNumber(), quoteAvail, availableFunds, amountOnOrder, amountToPlace.toNumber());
-          this.cancelOrder(order);
+        if (this.refreshLevel(i+1,true)){
+          let bidPrice = new BigNumber((startingBidPrice * (1-this.getOrderLevelSpread(i))).toFixed(this.quoteDisplayDecimals));
+          let amountOnOrder = (order.quantity.toNumber()-order.quantityfilled.toNumber())*order.price.toNumber() * 0.9999;
+          let availableFunds = quoteAvail + amountOnOrder;
+          let bidQty = new BigNumber(this.getQty(bidPrice,0,i+1,availableFunds));
+          let amountToPlace = bidQty;
+          if (availableFunds/bidPrice.toNumber() < amountToPlace.toNumber()){
+            amountToPlace = new BigNumber((availableFunds/bidPrice.toNumber())*.999);
+          }
+          if (amountToPlace.toNumber() * bidPrice.toNumber() > this.minTradeAmnt){
+            console.log("REPLACE ORDER:",bidPrice.toNumber(),bidQty.toNumber(), i+1);
+            quoteAvail -= bidQty.toNumber() * bidPrice.toNumber() - amountOnOrder
+            this.cancelReplaceOrder(order,bidPrice,amountToPlace);
+            this.setLevelRefreshPrice(i+1,true);
+          } else {
+            console.log("NOT ENOUGH FUNDS TO REPLACE", bidQty.toNumber() * bidPrice.toNumber(), quoteAvail, availableFunds, amountOnOrder, amountToPlace.toNumber());
+            this.cancelOrder(order);
+          }
         }
       } else {
         //set aside funds to create new orders
@@ -369,22 +377,25 @@ class MarketMakerBot extends AbstractBot {
         }
       }
       if (order.id){
-        let amountOnOrder = (order.quantity.toNumber()-order.quantityfilled.toNumber()) * .9999;
-        let availableFunds = baseAvail + amountOnOrder;
-
-        let askPrice = new BigNumber((startingAskPrice * (1+this.getOrderLevelSpread(i))).toFixed(this.quoteDisplayDecimals));
-        let askQty = new BigNumber(this.getQty(askPrice,1,i+1,availableFunds));
-        let amountToPlace = askQty;
-        if (availableFunds < askQty.toNumber()){
-          amountToPlace = new BigNumber(availableFunds * .999);
-        }
-        baseAvail -= askQty.toNumber() - amountOnOrder;
-        if (amountToPlace.toNumber() * askPrice.toNumber() > this.minTradeAmnt){
-          console.log("REPLACE ORDER:",askPrice.toNumber(),amountToPlace.toNumber(), i+1);
-          this.cancelReplaceOrder(order,askPrice,amountToPlace);
-        } else {
-          console.log("NOT ENOUGH FUNDS TO REPLACE", amountToPlace.toNumber(), availableFunds);
-          this.cancelOrder(order);
+        if (this.refreshLevel(i+1,false)){
+          let amountOnOrder = (order.quantity.toNumber()-order.quantityfilled.toNumber()) * .9999;
+          let availableFunds = baseAvail + amountOnOrder;
+  
+          let askPrice = new BigNumber((startingAskPrice * (1+this.getOrderLevelSpread(i))).toFixed(this.quoteDisplayDecimals));
+          let askQty = new BigNumber(this.getQty(askPrice,1,i+1,availableFunds));
+          let amountToPlace = askQty;
+          if (availableFunds < askQty.toNumber()){
+            amountToPlace = new BigNumber(availableFunds * .999);
+          }
+          baseAvail -= askQty.toNumber() - amountOnOrder;
+          if (amountToPlace.toNumber() * askPrice.toNumber() > this.minTradeAmnt){
+            console.log("REPLACE ORDER:",askPrice.toNumber(),amountToPlace.toNumber(), i+1);
+            this.cancelReplaceOrder(order,askPrice,amountToPlace);
+            this.setLevelRefreshPrice(i+1,false);
+          } else {
+            console.log("NOT ENOUGH FUNDS TO REPLACE", amountToPlace.toNumber(), availableFunds);
+            this.cancelOrder(order);
+          }
         }
       } else {
         let amount = this.getLevelQty(i+1) * 1.01;
@@ -424,12 +435,20 @@ class MarketMakerBot extends AbstractBot {
 
   // returns amount to place for given order level in base asset
   getLevelQty(level:number):number{
-    return parseFloat(this.flatAmount) + (parseFloat(this.orderLevelQty) * (level-1));
+    if (level != 1 && this.useIndependentLevels && this.independentLevels[(level).toString()].customQty){
+      return this.independentLevels[(level).toString()].customQty;
+    } else {
+      return parseFloat(this.flatAmount) + (parseFloat(this.orderLevelQty) * (level-1));
+    }
   }
 
   // returns % away from market price to place order
   getOrderLevelSpread(level:number):number{
-    return (level*parseFloat(this.orderLevelSpread))
+    if (level != 0 && this.useIndependentLevels && this.independentLevels[(level+1).toString()].customSpread){
+      return parseFloat(this.independentLevels[(level+1).toString()].customSpread);
+    } else {
+      return (level*parseFloat(this.orderLevelSpread))
+    }
   }
 
   getBidSpread():number{
@@ -487,6 +506,31 @@ class MarketMakerBot extends AbstractBot {
       this.logger.error(`${this.instanceName} Error during getNewMarketPrice`, error);
     }
     return this.marketPrice;
+  }
+
+  refreshLevel(level:number,isBid : boolean): boolean {
+    if (level == 1){
+      return true;
+    }
+    let lastUpdateBid = this.independentLevels[level.toString()].lastUpdateBid;
+    let lastUpdateAsk = this.independentLevels[level.toString()].lastUpdateAsk;
+    console.log("level:",level,"isBid",isBid,"lastUpdateBid",lastUpdateBid,"lastUpdateAsk",lastUpdateAsk);
+    if (isBid){
+      return !lastUpdateBid || Math.abs(lastUpdateBid - this.marketPrice.toNumber()) / lastUpdateBid > this.independentLevels[level.toString()].tolerance/100;
+    } else {
+      return !lastUpdateAsk || Math.abs(lastUpdateAsk - this.marketPrice.toNumber()) / lastUpdateAsk > this.independentLevels[level.toString()].tolerance/100;
+    }
+  }
+
+  setLevelRefreshPrice(level:number,isBid:boolean){
+    if (level == 1){
+      return;
+    }
+    if (isBid){
+      this.independentLevels[level.toString()].lastUpdateBid = this.marketPrice.toNumber();
+    } else {
+      this.independentLevels[level.toString()].lastUpdateAsk = this.marketPrice.toNumber();
+    }
   }
 
   // not used

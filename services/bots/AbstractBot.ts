@@ -484,7 +484,7 @@ abstract class AbstractBot {
 
     try {
       
-      const gasest = await this.getAddOrderListGasEstimate(clientOrderIds, prices, quantities, sides, type2s);
+      const gasest = BigNumberEthers.from(750000 * clientOrderIds.length);//await this.getAddOrderListGasEstimate(clientOrderIds, prices, quantities, sides, type2s); // failing to calculate accurately during busy times
 
       this.logger.warn(`${this.instanceName} Gas Est ${gasest.toString()}`);
       const tx = await this.tradePair.addLimitOrderList(
