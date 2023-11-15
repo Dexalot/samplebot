@@ -445,7 +445,7 @@ class MarketMakerBot extends AbstractBot {
   // returns % away from market price to place order
   getOrderLevelSpread(level:number):number{
     if (level != 0 && this.useIndependentLevels && this.independentLevels[(level+1).toString()].customSpread){
-      return parseFloat(this.independentLevels[(level+1).toString()].customSpread);
+      return parseFloat(this.independentLevels[(level+1).toString()].customSpread)/100;
     } else {
       return (level*parseFloat(this.orderLevelSpread))
     }
