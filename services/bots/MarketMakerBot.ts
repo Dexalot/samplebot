@@ -509,7 +509,7 @@ class MarketMakerBot extends AbstractBot {
   }
 
   refreshLevel(level:number,isBid : boolean): boolean {
-    if (level == 1){
+    if (level == 1 || !this.useIndependentLevels){
       return true;
     }
     let lastUpdateBid = this.independentLevels[level.toString()].lastUpdateBid;
@@ -523,7 +523,7 @@ class MarketMakerBot extends AbstractBot {
   }
 
   setLevelRefreshPrice(level:number,isBid:boolean){
-    if (level == 1){
+    if (level == 1 || !this.useIndependentLevels){
       return;
     }
     if (isBid){
