@@ -22,6 +22,9 @@ class MarketMakerBot extends AbstractBot {
   protected timer: any;
   protected lastBaseUsd: any;
   protected lastUpdate: any;
+  protected lastChange: number;
+  protected defensiveSkew: number;
+  protected slip: boolean;
 
   constructor(botId: number, pairStr: string, privateKey: string) {
     super(botId, pairStr, privateKey);
@@ -35,6 +38,9 @@ class MarketMakerBot extends AbstractBot {
     this.orderLevelQty = this.config.orderLevelQty;
     this.refreshOrderTolerance = this.config.refreshOrderTolerance/100;
     this.flatAmount = this.config.flatAmount;
+    this.defensiveSkew = this.config.defensiveSkew/100;
+    this.slip = this.config.slip;
+    this.lastChange = 0;
   }
 
   async saveBalancestoDb(balancesRefreshed: boolean): Promise<void> {
@@ -109,6 +115,7 @@ class MarketMakerBot extends AbstractBot {
         
         // Refresh orders, balances, and get new best bid and ask prices
         await Promise.all([this.correctNonce(this.contracts["SubNetProvider"]),this.processOpenOrders(),this.getBalances(),this.getBestOrders()]);
+        this.lastChange = Math.abs(this.marketPrice.toNumber()-this.lastMarketPrice.toNumber())/this.marketPrice.toNumber();
 
         // Cancel all orders, when finished, trigger the new order placement.
         const promise = Promise.resolve(this.cancelOrderList([], 100));
@@ -197,8 +204,8 @@ class MarketMakerBot extends AbstractBot {
   // For each subarray passed in, it creates a new order and adds it to newOrderList. At the end it calls addLimitOrderList with the newOrderList
   async placeInitialOrders(levels: number[][], availableQuote: number = this.contracts[this.quote].portfolioAvail, availableBase: number = this.contracts[this.base].portfolioAvail){
 
-    let initialBidPrice = parseFloat((this.marketPrice.toNumber() * (1-this.bidSpread)).toFixed(this.quoteDisplayDecimals));
-    let initialAskPrice = parseFloat((this.marketPrice.toNumber() * (1+this.askSpread)).toFixed(this.quoteDisplayDecimals));
+    let initialBidPrice = parseFloat((this.marketPrice.toNumber() * (1-this.getBidSpread())).toFixed(this.quoteDisplayDecimals));
+    let initialAskPrice = parseFloat((this.marketPrice.toNumber() * (1+this.getAskSpread())).toFixed(this.quoteDisplayDecimals));
     initialBidPrice = this.currentBestAsk && this.currentBestAsk <= initialBidPrice ? this.currentBestAsk - this.getIncrement() : initialBidPrice;
     initialAskPrice = this.currentBestBid && this.currentBestBid >= initialAskPrice ? this.currentBestBid + this.getIncrement() : initialAskPrice;
 
@@ -271,6 +278,37 @@ class MarketMakerBot extends AbstractBot {
 
   getLevelQty(level:number):number{
     return parseFloat(this.flatAmount) + (parseFloat(this.orderLevelQty) * (level-1));
+  }
+
+  getBidSpread():number{
+    let slip = 0;
+    if (this.lastChange > this.refreshOrderTolerance * 2 && this.slip){
+      slip = this.lastChange/2;
+    }
+    let defensiveSkew = 0;
+    let multiple = parseFloat(this.contracts[this.base].portfolioTot)*this.marketPrice.toNumber()/parseFloat(this.contracts[this.quote].portfolioTot);
+    if (multiple >= 2 && this.defensiveSkew){
+      defensiveSkew = multiple < 6 ? this.defensiveSkew * Math.floor(multiple-1) : this.defensiveSkew * 5
+    }
+    let bidSpread = this.bidSpread + defensiveSkew + slip;
+    console.log("Bid Spread:",bidSpread);
+    return bidSpread;
+  }
+
+  getAskSpread():number{
+    let slip = 0;
+    if (this.lastChange > this.refreshOrderTolerance * 2 && this.slip){
+      slip = this.lastChange - this.refreshOrderTolerance;
+    }
+    let defensiveSkew = 0;
+    let multiple = parseFloat(this.contracts[this.base].portfolioTot)*this.marketPrice.toNumber()/parseFloat(this.contracts[this.quote].portfolioTot);
+    if (1/multiple > 2 && this.defensiveSkew){
+      multiple = 1/multiple;
+      defensiveSkew = multiple < 6 ? this.defensiveSkew * Math.floor(multiple-1) : this.defensiveSkew * 5
+    }
+    let askSpread = this.askSpread + defensiveSkew + slip;
+    console.log("Ask Spread:",askSpread);
+    return askSpread;
   }
 
   getSpread(level:number):number{
