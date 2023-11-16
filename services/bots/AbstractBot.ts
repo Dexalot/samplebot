@@ -426,7 +426,7 @@ abstract class AbstractBot {
   async addLimitOrderList(newOrders: NewOrder[], tries: number = 0) {
 
     if(tries > 1){
-      this.cleanUpAndExit();
+      console.log("failed to addLimitOrderList");
       return
     }
 
