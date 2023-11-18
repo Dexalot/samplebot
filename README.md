@@ -33,10 +33,24 @@ Paste this into your .env.fuji with your private key and address. PLEASE USE A T
     "orderLevelSpread" : "0.30",
     "orderLevelQty" : "0.5",
     "refreshOrderTolerance" : "0.05",
-    "defensiveSkew" : "0.5",
+    "refreshOrderTime" : "0",
+    "defensiveSkew" : "0",
     "slip" : false,
-    "useRetrigger" : false
-    }
+    "useIndependentLevels" : false,
+    "independentLevels": 
+        {
+        "2":{ 
+            "customQty" : "2",
+            "customSpread": "0.4",
+            "tolerance": "0.3"
+            },
+        "3":{
+            "customQty" : "4",
+            "customSpread": "1",
+            "tolerance": "0.75"
+            }
+        }
+    },
 }
 ```
 
