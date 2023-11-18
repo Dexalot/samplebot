@@ -18,6 +18,7 @@ class MarketMakerBot extends AbstractBot {
   protected orderLevelSpread: any;
   protected orderLevelQty: any;
   protected refreshOrderTolerance: any;
+  protected refreshOrderTime: any;
   protected flatAmount: any;
   protected timer: any;
   protected lastBaseUsd: any;
@@ -37,6 +38,10 @@ class MarketMakerBot extends AbstractBot {
     this.orderLevelSpread = this.config.orderLevelSpread/100;
     this.orderLevelQty = this.config.orderLevelQty;
     this.refreshOrderTolerance = this.config.refreshOrderTolerance/100;
+    this.refreshOrderTime = this.config.refreshOrderTime;
+    if (typeof this.refreshOrderTime == "undefined"){
+      this.refreshOrderTime = 900; // set to 15 minutes if it hasn't been declared
+    }
     this.flatAmount = this.config.flatAmount;
     this.defensiveSkew = this.config.defensiveSkew/100;
     this.slip = this.config.slip;
@@ -107,7 +112,7 @@ class MarketMakerBot extends AbstractBot {
 
     try {
       console.log(Date.now(), this.lastUpdate)
-      if (this.status && ((Date.now() - this.lastUpdate)/1000 > 20 || this.marketPrice.toNumber()<this.lastMarketPrice.toNumber()*(1-parseFloat(this.refreshOrderTolerance)) || this.marketPrice.toNumber()>this.lastMarketPrice.toNumber()*(1+parseFloat(this.refreshOrderTolerance)))){
+      if (this.status && (((this.refreshOrderTime && Date.now() - this.lastUpdate)/1000 > this.refreshOrderTime) || this.marketPrice.toNumber()<this.lastMarketPrice.toNumber()*(1-parseFloat(this.refreshOrderTolerance)) || this.marketPrice.toNumber()>this.lastMarketPrice.toNumber()*(1+parseFloat(this.refreshOrderTolerance)))){
         this.orderUpdaterCounter ++;
         this.lastUpdate = Date.now();
         this.timer = this.interval;
