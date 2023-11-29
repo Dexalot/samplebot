@@ -88,7 +88,7 @@ class Analytics extends AbstractBot {
                     data.askFillsMaker ++;
                 } else {
                     data.makerSellsAmt += e.quantityfilled * e.price;
-                    data.takerSellsQty += parseFloat(e.quantityfilled);
+                    data.makerSellsQty += parseFloat(e.quantityfilled);
                     data.askFillsTaker ++;
                 }
             }
