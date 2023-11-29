@@ -1,6 +1,7 @@
 import MarketMakerBot from "./MarketMakerBot";
 import MarketMakerBotOrderLists from "./MarketMakerBotOrderLists";
-const Bot:any = {marketMaker: MarketMakerBot, marketMakerLists: MarketMakerBotOrderLists};
+import Analytics from "./Analytics";
+const Bot:any = {marketMaker: MarketMakerBot, marketMakerLists: MarketMakerBotOrderLists, analytics: Analytics};
 
 module.exports = {
     createBot(type:any, attributes:any) {

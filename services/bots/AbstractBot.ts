@@ -1491,6 +1491,16 @@ abstract class AbstractBot {
     }
   }
 
+  async getFilledOrders(startDate:any = new Date(Date.now()-86400000).toISOString(),endDate:any = new Date(Date.now()).toISOString()) {
+    try {
+      const orders: any = (await axios.get(signedApiUrl + "orders?pair=" + this.tradePairIdentifier + "&category=1" + "&periodfrom=" + startDate + "&periodto="+endDate, this.axiosConfig))
+        .data;
+      return orders.rows;
+    } catch (error: any) {
+      this.logger.error(`${this.instanceName} ${error}`);
+    }
+  }
+
   async processOpenOrders() {
     //this.logger.info(`${this.instanceName} Recovering open orders:`);
     const orders = await this.getOpenOrders();
