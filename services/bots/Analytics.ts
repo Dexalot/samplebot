@@ -72,11 +72,11 @@ class Analytics extends AbstractBot {
                 if (e.type2 == 2){
                     data.takerBuysAmt += e.quantityfilled * e.price;
                     data.takerBuysQty += parseFloat(e.quantityfilled);
-                    data.buyFillsMaker ++;
+                    data.buyFillsTaker ++;
                 } else {
                     data.makerBuysAmt += e.quantityfilled * e.price;
                     data.makerBuysQty += parseFloat(e.quantityfilled);
-                    data.buyFillsTaker ++;
+                    data.buyFillsMaker ++;
                 }
             } else if (e.side == 1){
                 data.qtyOutstanding-=parseFloat(e.quantityfilled);
@@ -85,11 +85,11 @@ class Analytics extends AbstractBot {
                 if (e.type2 == 2){
                     data.takerSellsAmt += e.quantityfilled * e.price;
                     data.takerSellsQty += parseFloat(e.quantityfilled);
-                    data.askFillsMaker ++;
+                    data.askFillsTaker ++;
                 } else {
                     data.makerSellsAmt += e.quantityfilled * e.price;
                     data.makerSellsQty += parseFloat(e.quantityfilled);
-                    data.askFillsTaker ++;
+                    data.askFillsMaker ++;
                 }
             }
         }
