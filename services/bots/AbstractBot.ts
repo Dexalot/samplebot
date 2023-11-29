@@ -1496,7 +1496,7 @@ abstract class AbstractBot {
     console.log("START DATE:",startDate);
     console.log("END DATE:",endDate);
     try {
-      let recordsPerRequest = 50;
+      let recordsPerRequest = 200;
       let keepRunning = true;
       let i = 1;
       let rows: any = [];
@@ -1504,7 +1504,7 @@ abstract class AbstractBot {
         const orders: any = (await axios.get(signedApiUrl + "orders?pair=" + this.tradePairIdentifier + "&category=1" + "&periodfrom=" + startDate + "&periodto="+endDate + "&itemsperpage="+recordsPerRequest+"&pageno="+i, this.axiosConfig))
           .data;
         if (orders.rows.length > 0){
-          console.log("page:",i," out of:",orders.rows[0].nbrof_rows/Math.ceil(recordsPerRequest));
+          console.log("page:",i," out of:",orders.rows[0].nbrof_rows);
           rows = rows.concat(orders.rows);
           i ++;
         } else {
