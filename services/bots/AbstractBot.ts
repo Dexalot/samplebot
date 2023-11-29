@@ -1492,6 +1492,9 @@ abstract class AbstractBot {
   }
 
   async getFilledOrders(startDate:any = new Date(Date.now()-86400000).toISOString(),endDate:any = new Date(Date.now()).toISOString()) {
+    
+    console.log("START DATE:",startDate);
+    console.log("END DATE:",endDate);
     try {
       const orders: any = (await axios.get(signedApiUrl + "orders?pair=" + this.tradePairIdentifier + "&category=1" + "&periodfrom=" + startDate + "&periodto="+endDate, this.axiosConfig))
         .data;

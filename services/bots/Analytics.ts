@@ -6,11 +6,15 @@ import AbstractBot from "./AbstractBot";
 import NewOrder from "./classes";
 
 class Analytics extends AbstractBot {
+    protected startDate: number = 0;
+    protected endDate: number = 0;
 
   constructor(botId: number, pairStr: string, privateKey: string) {
     super(botId, pairStr, privateKey);
     this.portfolioRebalanceAtStart = false;
     this.config = getConfig(this.tradePairIdentifier);
+    this.startDate = parseInt(getConfig("startDate")?getConfig("startDate"):"0");
+    this.endDate = parseInt(getConfig("endDate")?getConfig("endDate"):"0");
   }
 
   async saveBalancestoDb(balancesRefreshed: boolean): Promise<void> {
@@ -20,7 +24,15 @@ class Analytics extends AbstractBot {
   async initialize(): Promise<boolean> {
     const initializing = await super.initialize();
     if (initializing) {
-      const filledOrders = await this.getFilledOrders(new Date(Date.now()-(86400000*30)).toISOString());
+        let startDate = Date.now()-(86400000*30);
+        let endDate = Date.now();
+      if (this.startDate){
+        startDate = this.startDate;
+      }
+      if (this.endDate){
+        endDate = this.endDate;
+      }
+      const filledOrders = await this.getFilledOrders(new Date(startDate).toISOString(),new Date(endDate).toISOString());
       this.runAnalytics(filledOrders);
       process.exit(1);
       
