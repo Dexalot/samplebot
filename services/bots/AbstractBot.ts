@@ -1502,8 +1502,9 @@ abstract class AbstractBot {
       while(keepRunning = true){
         const orders: any = (await axios.get(signedApiUrl + "orders?pair=" + this.tradePairIdentifier + "&category=1" + "&periodfrom=" + startDate + "&periodto="+endDate + "&itemsperpage=50"+"&pageno="+i, this.axiosConfig))
           .data;
-        if (orders.rows.length > 0 && i <= 5){
+        if (orders.rows.length > 0){
           rows = rows.concat(orders.rows);
+          utils.sleep(50);
           i ++;
         } else {
           keepRunning = false;
