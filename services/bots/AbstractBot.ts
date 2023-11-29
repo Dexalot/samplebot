@@ -1508,9 +1508,7 @@ abstract class AbstractBot {
             newRows.shift();
           }
           tries ++
-          if (tries > 3){
-            process.exit(2);
-          }
+          process.exit(2);
           rows = rows.concat(newRows);
           endDate = rows[rows.length-1].update_ts
         }
