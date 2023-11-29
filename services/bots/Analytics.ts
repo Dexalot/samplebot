@@ -56,22 +56,21 @@ class Analytics extends AbstractBot {
                 totalCost += e.quantityfilled * e.price;
                 if (e.type2 == 2){
                     takerBuysAmt += e.quantityfilled * e.price;
-                    takerBuysQty += e.quantityfilled;
+                    takerBuysQty += parseFloat(e.quantityfilled);
                 } else {
                     makerBuysAmt += e.quantityfilled * e.price;
-                    makerBuysQty += e.quantityfilled;
+                    makerBuysQty += parseFloat(e.quantityfilled);
                 }
             } else if (e.side == 1){
                 qtyOutstanding-=parseFloat(e.quantityfilled);
-                totalFees += e.totalfee;
+                totalFees += parseFloat(e.totalfee);
                 totalSold += e.quantityfilled * e.price
                 if (e.type2 == 2){
                     takerSellsAmt += e.quantityfilled * e.price;
-                    takerSellsQty += e.quantityfilled;
-                    console.log(e);
+                    takerSellsQty += parseFloat(e.quantityfilled);
                 } else {
                     makerSellsAmt += e.quantityfilled * e.price;
-                    takerSellsQty += e.quantityfilled;
+                    takerSellsQty += parseFloat(e.quantityfilled);
                 }
             }
         }
