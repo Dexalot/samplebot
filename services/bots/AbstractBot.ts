@@ -1496,9 +1496,21 @@ abstract class AbstractBot {
     console.log("START DATE:",startDate);
     console.log("END DATE:",endDate);
     try {
-      const orders: any = (await axios.get(signedApiUrl + "orders?pair=" + this.tradePairIdentifier + "&category=1" + "&periodfrom=" + startDate + "&periodto="+endDate, this.axiosConfig))
-        .data;
-      return orders.rows;
+      let keepRunning = true;
+      let i = 1;
+      let rows: any = [];
+      while(keepRunning = true){
+        const orders: any = (await axios.get(signedApiUrl + "orders?pair=" + this.tradePairIdentifier + "&category=1" + "&periodfrom=" + startDate + "&periodto="+endDate + "&itemsperpage=50"+"&pageno="+i, this.axiosConfig))
+          .data;
+        if (orders.rows.length > 0 && i <= 5){
+          console.log(orders.rows);
+          rows.concat(orders.rows);
+          i ++;
+        } else {
+          keepRunning = false;
+          return rows;
+        }
+      }
     } catch (error: any) {
       this.logger.error(`${this.instanceName} ${error}`);
     }
