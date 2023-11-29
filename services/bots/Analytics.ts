@@ -8,6 +8,9 @@ import NewOrder from "./classes";
 class Analytics extends AbstractBot {
     protected startDate: number = 0;
     protected endDate: number = 0;
+    protected marketPrice = new BigNumber(0);
+    protected baseUsd = 0; 
+    protected quoteUsd = 0; 
 
   constructor(botId: number, pairStr: string, privateKey: string) {
     super(botId, pairStr, privateKey);
@@ -24,6 +27,7 @@ class Analytics extends AbstractBot {
   async initialize(): Promise<boolean> {
     const initializing = await super.initialize();
     if (initializing) {
+        await this.getNewMarketPrice();
         let startDate = Date.now()-(86400000*30);
         let endDate = Date.now();
       if (this.startDate){
@@ -107,9 +111,31 @@ class Analytics extends AbstractBot {
   async startOrderUpdater() {
   }
 
-  // Update the marketPrice from an outside source
+
+  // Update the marketPrice from price feed bot
   async getNewMarketPrice() {
-    return new BigNumber(0);
+    try {
+      let response = await axios.get('http://localhost:3000/prices');
+      let prices = response.data;
+      
+
+      if (this.base == "sAVAX"){
+        this.quoteUsd = prices[this.quote+'-USD']; 
+        this.baseUsd = prices['sAVAX-AVAX'] * this.quoteUsd; 
+      } else {
+        this.baseUsd = prices[this.base+'-USD']; 
+        this.quoteUsd = prices[this.quote+'-USD']; 
+      }
+      if (this.baseUsd && this.quoteUsd){
+        this.marketPrice = new BigNumber(this.baseUsd/this.quoteUsd);
+        console.log("new market Price:",this.marketPrice.toNumber());
+      } else {
+        throw 'trouble getting base or quote prices'
+      }
+    } catch (error: any) {
+      this.logger.error(`${this.instanceName} Error during getNewMarketPrice`, error);
+    }
+    return this.marketPrice;
   }
 
   getPrice(side: number): BigNumber {

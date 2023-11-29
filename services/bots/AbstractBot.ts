@@ -1495,24 +1495,48 @@ abstract class AbstractBot {
     
     console.log("START DATE:",startDate);
     console.log("END DATE:",endDate);
+    let rows: any = [];
+    let tries = 0;
+    try {
+      let keepRunning = true;
+      while (keepRunning){
+        let newRows = await this.getRecords(startDate,endDate);
+        if (tries != 0 && newRows[newRows.length-1].update_ts == rows[rows.length-1].update_ts){
+          return rows;
+        } else {
+          tries ++
+          if (tries > 3){
+            process.exit(2);
+          }
+          rows = rows.concat(newRows);
+          endDate = rows[rows.length-1].update_ts
+        }
+      }
+    } catch (error: any) {
+      this.logger.error(`${this.instanceName} ${error}`);
+    }
+  }
+
+  async getRecords(startDate:string,endDate:string){
     try {
       let recordsPerRequest = 20;
       let totalRecords = 200;
       let i = 1;
       let promises:any = [];
       let rows: any = [];
-      let record = await axios.get(signedApiUrl + "orders?pair=" + this.tradePairIdentifier + "&category=1" + "&periodfrom=" + startDate + "&periodto="+endDate + "&itemsperpage="+recordsPerRequest+"&pageno="+i, this.axiosConfig);
+      let record = await axios.get(signedApiUrl + "orders?pair=" + this.tradePairIdentifier + "&category=1" + "&periodfrom=" + startDate + "&periodto="+endDate + "&itemsperpage=20"+"&pageno="+i, this.axiosConfig);
       totalRecords = record.data.rows[0].nbrof_rows;
       console.log("total Records:",totalRecords);
-      while(i <= Math.ceil(totalRecords/recordsPerRequest)){
+      while(i <= Math.ceil(totalRecords/20)){
         await new Promise(resolve => setTimeout(resolve, 100));
-        promises.push(axios.get(signedApiUrl + "orders?pair=" + this.tradePairIdentifier + "&category=1" + "&periodfrom=" + startDate + "&periodto="+endDate + "&itemsperpage="+recordsPerRequest+"&pageno="+i, this.axiosConfig));
+        promises.push(axios.get(signedApiUrl + "orders?pair=" + this.tradePairIdentifier + "&category=1" + "&periodfrom=" + startDate + "&periodto="+endDate + "&itemsperpage=20"+"&pageno="+i, this.axiosConfig));
         i++
       }
       const records = await Promise.all(promises);
       records.forEach((e)=>{
         rows = rows.concat(e.data.rows);
       })
+
       return rows;
     } catch (error: any) {
       this.logger.error(`${this.instanceName} ${error}`);
