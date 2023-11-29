@@ -35,28 +35,53 @@ class Analytics extends AbstractBot {
     let totalSold = 0;
     let qtyOutstanding = 0;
     let totalFees = 0;
-    let takerBuys = 0;
-    let takerSells = 0;
+    let makerBuysQty = 0;
+    let makerBuysAmt = 0;
+    let makerSellsQty = 0;
+    let makerSellsAmt = 0;
+    let takerBuysQty = 0;
+    let takerBuysAmt = 0;
+    let takerSellsQty = 0;
+    let takerSellsAmt = 0;
+    let totalVolumeQuote = 0;
+    let totalVolumeBase = 0;
+    let avgBuyPrice = 0;
+    let avgSellPrice = 0;
     filledOrders.forEach((e:any) => {
-        if (e.side == 0){
-            qtyOutstanding += parseFloat(e.quantityfilled);
-            let fee = e.totalfee * e.price;
-            totalFees += fee;
-            totalCost += e.quantityfilled * e.price;
-            if (e.type2 == 2){
-                takerBuys += e.quantityFilled * e.price;
-            }
-        } else if (e.side == 1){
-            qtyOutstanding-=parseFloat(e.quantityfilled);
-            totalFees += e.totalfee;
-            totalSold += e.quantityfilled * e.price
-            if (e.type2 == 2){
-                takerSells += e.quantityFilled * e.price;
+        if (e.type2 == 2 || e.type2 == 3){
+            if (e.side == 0){
+                qtyOutstanding += parseFloat(e.quantityfilled);
+                let fee = e.totalfee * e.price;
+                totalFees += fee;
+                totalCost += e.quantityfilled * e.price;
+                if (e.type2 == 2){
+                    takerBuysAmt += e.quantityfilled * e.price;
+                    takerBuysQty += e.quantityfilled;
+                } else {
+                    makerBuysAmt += e.quantityfilled * e.price;
+                    makerBuysQty += e.quantityfilled;
+                }
+            } else if (e.side == 1){
+                qtyOutstanding-=parseFloat(e.quantityfilled);
+                totalFees += e.totalfee;
+                totalSold += e.quantityfilled * e.price
+                if (e.type2 == 2){
+                    takerSellsAmt += e.quantityfilled * e.price;
+                    takerSellsQty += e.quantityfilled;
+                    console.log(e);
+                } else {
+                    makerSellsAmt += e.quantityfilled * e.price;
+                    takerSellsQty += e.quantityfilled;
+                }
             }
         }
+        totalVolumeBase += e.quantityFilled;
+        totalVolumeQuote += e.quantityFilled * e.price;
     });
-    let realizedGains = totalCost - totalSold;
-    console.log("REALIZED GAINS:",realizedGains,"QTY OUTSTANDING:",qtyOutstanding, "TAKER BUYS:", takerBuys, "TAKER SELLS:",takerSells);
+    avgBuyPrice = (takerBuysAmt+makerBuysAmt)/(takerBuysQty+makerBuysQty);
+    avgSellPrice = (takerSellsAmt+makerSellsAmt)/(takerSellsQty+makerSellsQty);
+    
+    console.log("AVG BUY:",avgBuyPrice, "AVG SELL:", avgSellPrice,"QTY OUTSTANDING:",qtyOutstanding,"MAKER BUYS AMT:", makerBuysAmt, "MAKER SELLS AMT:",makerSellsAmt, "TAKER BUYS AMT:", takerBuysAmt, "TAKER SELLS AMT:",takerSellsAmt, "TotalVolumeBase:",totalVolumeBase,"TotalVolumeQuote:",totalVolumeQuote, "TOTAL FEES:", totalFees);
   }
 
   async startOrderUpdater() {
