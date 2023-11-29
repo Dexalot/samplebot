@@ -1504,6 +1504,9 @@ abstract class AbstractBot {
         if (tries != 0 && newRows[newRows.length-1].update_ts == rows[rows.length-1].update_ts){
           return rows;
         } else {
+          if (tries > 0 && newRows[0].update_ts == rows[rows.length-1].update_ts){
+            newRows.shift();
+          }
           tries ++
           if (tries > 3){
             process.exit(2);
