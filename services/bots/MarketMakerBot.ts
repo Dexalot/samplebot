@@ -143,8 +143,8 @@ class MarketMakerBot extends AbstractBot {
         let startingAskPrice = startingAskPriceBG.toNumber();
 
         // if the bid and ask are the same price, increase the ask by one tick
-        if (startingBidPrice == startingAskPrice){
-          startingAskPrice += this.getIncrement();
+        if (startingBidPrice >= startingAskPrice){
+          startingAskPrice = startingBidPrice + this.getIncrement();
         }
 
         // if takerEnabled config is true, these prices will be used to determine what price to place taker orders at.
