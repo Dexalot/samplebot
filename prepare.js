@@ -48,7 +48,7 @@ folders.forEach((folder) => {
   fs.readdirSync(folder.path).forEach((file) => {
     if (folder.regex.test(file)) {
       console.log(`copying file ${file} to ${distJsFolder}`);
-      fs.copyFileSync(`${folder.path}\\${file}`, `${folder.outputFile}\\${file}`);
+      fs.copyFileSync(`${folder.path}\/${file}`, `${folder.outputFile}\/${file}`);
     }
   });
 });

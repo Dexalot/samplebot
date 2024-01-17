@@ -4,18 +4,13 @@
   "license": "MIT",
   "private": true,
   "author": "Cengiz Dincoglu",
-  "engines": {
-    "node": "16.15.1"
-  },
   "scripts": {
-    "sampleBot-hh": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=local-hh --ENCYRPT_SECRET=secret --ENCRYPT_SALT=salt",
-    "sampleBot-dev": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=development --ENCYRPT_SECRET=secret --ENCRYPT_SALT=salt",
-    "sampleBot-fuji": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=fuji --ENCYRPT_SECRET=secret --ENCRYPT_SALT=salt",
-    "loadBot": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=multiapp --ENCYRPT_SECRET=secret --ENCRYPT_SALT=salt",
-    "loadBot1": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=multiapp@1 --ENCYRPT_SECRET=secret --ENCRYPT_SALT=salt",
-    "loadBot2": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=multiapp@2 --ENCYRPT_SECRET=secret --ENCRYPT_SALT=salt",
-    "loadBot3": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --NODE_ENV_SETTINGS=multiapp@3 --ENCYRPT_SECRET=secret --ENCRYPT_SALT=salt",
-    "prepare": "node prepare.js"
+    "marketMaker-fuji": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --bot_type=marketMaker --NODE_ENV_SETTINGS=fuji",
+    "marketMakerLists-fuji": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --bot_type=marketMakerLists --NODE_ENV_SETTINGS=fuji",
+    "marketMaker-prod": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --bot_type=marketMaker --NODE_ENV_SETTINGS=production",
+    "marketMakerLists-prod": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --bot_type=marketMakerLists --NODE_ENV_SETTINGS=production",
+    "taker-prod": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --bot_type=taker --NODE_ENV_SETTINGS=production",
+    "analytics-prod": "tsc && node prepare && node ./dist-js/services/bots/botLauncher.js --bot_type=analytics --NODE_ENV_SETTINGS=production"
   },
   "dependencies": {
     "@ethersproject/experimental": "5.7.0",

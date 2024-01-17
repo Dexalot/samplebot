@@ -9,6 +9,7 @@ import { BigNumber as BigNumberEthers } from "ethers";
 import axios from "axios";
 import { getLogger } from "../logger";
 import OrderBook from "./orderbook";
+import NewOrder from "./classes";
 
 import ERC20ABI from "../../artifacts/contracts/ERC20.json";
 import OrderBookRecordRaw from "../../models/orderBookRecordRaw";
@@ -44,11 +45,11 @@ abstract class AbstractBot {
   protected filter: any;
   protected cleanupCalled = false;
   protected interval = 20000;
-  protected orderbook: any; //local orderbook to keep track of my own orders ONLY
+  protected orderbook: any; //local orderbook
   protected chainOrderbook: any; //orderbook from the chain
-  protected orderUptader: NodeJS.Timeout | undefined;
+  protected orderUpdater: NodeJS.Timeout | undefined;
   protected rebalancePct = 0.9;
-  protected portfolioRebalanceAtStart = "N";
+  protected portfolioRebalanceAtStart = false;
   protected lastExecution: any;
   protected PNL: any; // Needs to be implemented
   protected initialDepositBase = 10000;
@@ -61,6 +62,13 @@ abstract class AbstractBot {
   protected tokenDetails: any;
   protected signature: any;
   protected axiosConfig: any;
+  protected orderBooks: any;
+  protected orderBookID: any;
+  protected orderBookID1: any;
+  protected currentBestBid: any;
+  protected currentBestAsk: any;
+  protected counter: any;
+  protected retrigger = false;
 
   constructor(botId: number, pairStr: string, privateKey: string, ratelimit_token?: string) {
     this.logger = getLogger("Bot");
@@ -74,6 +82,7 @@ abstract class AbstractBot {
     this.orders = new Map();
     this.orderbook = new OrderBook();
     this.ratelimit_token = ratelimit_token;
+    this.counter = 0;
 
     (axios.defaults.headers! as unknown as Record<string, any>).common["Origin"] = getConfig("ORIGIN_LINK");
     (axios.defaults.headers! as unknown as Record<string, any>).common["User-Agent"] =
@@ -109,6 +118,7 @@ abstract class AbstractBot {
   async getDeployments() {
     await this.getDeployment(BlockchainContractType.Portfolio);
     await this.getDeployment(BlockchainContractType.TradePairs);
+    await this.getDeployment(BlockchainContractType.OrderBooks);
     this.contracts["AVAX"] = {
       contractName: "AVAX",
       inByte32: utils.fromUtf8("AVAX"),
@@ -197,10 +207,18 @@ abstract class AbstractBot {
         await this.getTokenDetails();
 
         this.contracts["MainnetProvider"] = { provider: this.getProvider(this.getEnvironment("mainnet").chain_instance), nonce: 0 };
-        this.contracts["SubNetProvider"] = {
-          provider: this.getProvider(this.getEnvironment("subnet").chain_instance, this.ratelimit_token),
-          nonce: 0
-        };
+        if (getConfig("NODE_ENV_SETTINGS") == "production" && getConfig("rpc_url")){
+          this.contracts["SubNetProvider"] = {
+            provider: this.getProvider(getConfig("rpc_url"), this.ratelimit_token),
+            nonce: 0
+          };
+        } else {
+          console.log("Use default subnetProvider")
+          this.contracts["SubNetProvider"] = {
+            provider: this.getProvider(this.getEnvironment("subnet").chain_instance, this.ratelimit_token),
+            nonce: 0
+          };
+        }
         this.contracts["MainnetWallet"] = new NonceManager(new ethers.Wallet(this.privateKey, this.contracts["MainnetProvider"].provider));
 
         const wal = new ethers.Wallet(this.privateKey, this.contracts["SubNetProvider"].provider);
@@ -237,9 +255,15 @@ abstract class AbstractBot {
         this.contracts["TradePairs"].deployedContract = this.tradePair;
 
         this.minTradeAmnt = this.pairObject.mintrade_amnt;
-        this.maxTradeAmnt = this.pairObject.mintrade_amnt;
+        this.maxTradeAmnt = this.pairObject.maxtrade_amnt;
         this.quoteDisplayDecimals = this.pairObject.quotedisplaydecimals;
         this.baseDisplayDecimals = this.pairObject.basedisplaydecimals;
+        
+        deployment = this.contracts["OrderBooks"];
+        this.orderBooks = new ethers.Contract(deployment.address, deployment.abi.abi, this.contracts["SubnetWallet"]);
+        this.orderBookID = await this.tradePair.getBookId(this.tradePairByte32,0);
+        this.orderBookID1 = await this.tradePair.getBookId(this.tradePairByte32,1);
+        await this.getBestOrders();
 
         let avaxLoaded;
 
@@ -329,48 +353,33 @@ abstract class AbstractBot {
     const savetoDb = this.status;
     this.logger.warn(`${this.instanceName} Stoppig bot...`);
     this.status = false;
-    if (this.orderUptader !== undefined) {
-      clearTimeout(this.orderUptader);
+    if (this.orderUpdater !== undefined) {
+      clearTimeout(this.orderUpdater);
     }
-    if (this.getSettingValue("CANCEL_ALL_AT_STOP") === "Y") {
-      this.cancelOrderList()
-        .then(() => {
-          this.logger.warn(`${this.instanceName} Waiting 5 seconds before removing order listeners"...`);
-          setTimeout(async () => {
-            if (savetoDb) {
-              await this.saveBalancestoDb(false);
-            }
-            if (this.PNL) {
-              this.PNL.reset();
-            }
-            if (this.filter) {
-              //Give 5 seconds before removing listeners
-              this.tradePair.removeAllListeners();
-              this.filter = undefined;
-              this.logger.warn(`${this.instanceName} Removed order listeners`);
-            }
-          }, 5000);
-        })
-        .catch((e: any) => {
-          this.logger.error(`${this.instanceName} problem in Bot Stop + ${e.message}`);
-        });
-    } else {
-      this.logger.warn(`${this.instanceName} Waiting 5 seconds before removing order listeners"...`);
-      setTimeout(async () => {
-        if (savetoDb) {
-          await this.saveBalancestoDb(false);
-        }
-        if (this.PNL) {
-          this.PNL.reset();
-        }
-        if (this.filter) {
-          //Give 5 seconds before removing listeners
-          this.tradePair.removeAllListeners();
-          this.filter = undefined;
-          this.logger.warn(`${this.instanceName} Removed order listeners`);
-        }
-      }, 5000);
-    }
+    setTimeout(async ()=> {
+      await this.processOpenOrders();
+      this.cancelOrderList([], 100)
+      .then(() => {
+        this.logger.warn(`${this.instanceName} Waiting 5 seconds before removing order listeners"...`);
+        setTimeout(async () => {
+          if (savetoDb) {
+            await this.saveBalancestoDb(false);
+          }
+          if (this.PNL) {
+            this.PNL.reset();
+          }
+          if (this.filter) {
+            //Give 5 seconds before removing listeners
+            this.tradePair.removeAllListeners();
+            this.filter = undefined;
+            this.logger.warn(`${this.instanceName} Removed order listeners`);
+          }
+        }, 3000);
+      })
+      .catch((e: any) => {
+        this.logger.error(`${this.instanceName} problem in Bot Stop + ${e.message}`);
+      });
+    },5000);
   }
 
   getSettingValue(settingname: string) {
@@ -392,7 +401,6 @@ abstract class AbstractBot {
   abstract saveBalancestoDb(balancesRefreshed: boolean): Promise<void>;
   abstract getPrice(side: number): BigNumber;
   abstract getAlotPrice(): Promise<number>;
-  // infinite loop that updates the order books periodically
   abstract startOrderUpdater(): Promise<void>;
   abstract getBaseCapital(): number;
   abstract getQuoteCapital(): number;
@@ -415,8 +423,13 @@ abstract class AbstractBot {
     return new BigNumber(this.minTradeAmnt * (1 + Math.random() * 0.2)).div(price);
   }
 
-  // Reference implementation, it just send 6 buy limit GTC orders with prices from 94 to 100
-  async addLimitOrderList() {
+  async addLimitOrderList(newOrders: NewOrder[], tries: number = 0) {
+
+    if(tries > 1){
+      console.log("failed to addLimitOrderList");
+      return
+    }
+
     const clientOrderIds = [];
     const prices = [];
     const quantities = [];
@@ -424,23 +437,25 @@ abstract class AbstractBot {
     const type2s = [];
 
     const blocknumber = (await this.contracts["SubNetProvider"].provider.getBlockNumber()) || 0;
-    //buy orders
-    for (let i = 0; i < 6; i++) {
-      const clientOrderId = await this.getClientOrderId(blocknumber, i);
+
+    for (let i = 0; i < newOrders.length; i++){
+      this.counter ++
+      const clientOrderId = await this.getClientOrderId(blocknumber, this.counter);
+      newOrders[i].clientOrderId = clientOrderId;
       const priceToSend = utils.parseUnits(
-        (100 - i).toFixed(this.quoteDisplayDecimals),
+        newOrders[i].price.toFixed(this.quoteDisplayDecimals),
         this.contracts[this.quote].tokenDetails.evmdecimals
       );
       const quantityToSend = utils.parseUnits(
-        (10 + i).toFixed(this.baseDisplayDecimals),
+        newOrders[i].quantity.toFixed(this.baseDisplayDecimals),
         this.contracts[this.base].tokenDetails.evmdecimals
       );
       clientOrderIds.push(clientOrderId);
 
       prices.push(priceToSend);
       quantities.push(quantityToSend);
-      sides.push(0);
-      type2s.push(0);
+      sides.push(newOrders[i].side);
+      type2s.push(3);
 
       const order = this.makeOrder(
         this.account,
@@ -450,9 +465,9 @@ abstract class AbstractBot {
         priceToSend,
         0,
         quantityToSend,
-        0,
+        newOrders[i].side,
         1,
-        0, //Buy , Limit, GTC
+        0, //Buy , Limit, GTC 3 = post only
         9, //PENDING status
         0,
         0,
@@ -460,14 +475,16 @@ abstract class AbstractBot {
         0,
         0,
         0,
-        0
+        0,
+        newOrders[i].level
       );
 
       this.addOrderToMap(order);
     }
 
     try {
-      const gasest = await this.getAddOrderListGasEstimate(clientOrderIds, prices, quantities, sides, type2s);
+      
+      const gasest = BigNumberEthers.from(750000 * clientOrderIds.length);//await this.getAddOrderListGasEstimate(clientOrderIds, prices, quantities, sides, type2s); // failing to calculate accurately during busy times
 
       this.logger.warn(`${this.instanceName} Gas Est ${gasest.toString()}`);
       const tx = await this.tradePair.addLimitOrderList(
@@ -487,6 +504,14 @@ abstract class AbstractBot {
           if (_log.event) {
             if (_log.event === "OrderStatusChanged") {
               if (_log.args.traderaddress === this.account && _log.args.pair === this.tradePairByte32) {
+                let level = 0;
+                let quantity = new BigNumber(0);
+                for (let i = 0; i < newOrders.length; i++){
+                  if (newOrders[i].clientOrderId == _log.args.clientOrderId){
+                    level = newOrders[i].level;
+                    quantity = newOrders[i].quantity;
+                  }
+                }
                 await this.processOrders(
                   _log.args.version,
                   this.account,
@@ -495,7 +520,7 @@ abstract class AbstractBot {
                   _log.args.clientOrderId,
                   _log.args.price,
                   _log.args.totalamount,
-                  _log.args.quantity,
+                  quantity,
                   _log.args.side,
                   _log.args.type1,
                   _log.args.type2,
@@ -503,7 +528,8 @@ abstract class AbstractBot {
                   _log.args.quantityfilled,
                   _log.args.totalfee,
                   _log.args.code,
-                  _log
+                  _log,
+                  level
                 );
               }
             }
@@ -527,7 +553,9 @@ abstract class AbstractBot {
         if (reason) {
           this.logger.warn(`${this.instanceName} addLimitOrderList error: Revert Reason ${reason}`);
         } else {
-          this.logger.error(`${this.instanceName} addLimitOrderList error:`, error);
+          //this.logger.error(`${this.instanceName} addLimitOrderList error:`, error);
+          console.log("FAILED TO ADD ORDER LIST. TRYING AGAIN...")
+          this.addLimitOrderList(newOrders,tries + 1);
         }
       }
     }
@@ -541,13 +569,15 @@ abstract class AbstractBot {
     }
   }
 
-  async addOrder(side: number, qty: BigNumber | undefined, px: BigNumber | undefined, ordtype = 1, ordType2 = 0) {
+  async addOrder(side: number, qty: BigNumber | undefined, px: BigNumber | undefined, ordtype = 1, ordType2 = 3, level: number, tries: number = 0) {
     // LIMIT ORDER  & GTC)
-    if (!this.status) {
+    if (!this.status || tries>1) {
       return;
     }
 
-    const clientOrderId = await this.getClientOrderId();
+      //get unique counter to generate clientOrderId
+      this.counter ++
+      const clientOrderId = await this.getClientOrderId(0,this.counter);
 
     let price = px;
     let quantity = qty;
@@ -573,44 +603,18 @@ abstract class AbstractBot {
         const funds = this.fundsAvailable(side, quantity, marketPrice);
         if (side === 0) {
           if (!funds) {
-            this.logger.error(`${this.instanceName} Not enough funds to add BUY order`);
-            utils.printBalances(this.account, this.quote, this.contracts[this.quote]);
+            //this.logger.error(`${this.instanceName} Not enough funds to add BUY order`);
+            //utils.printBalances(this.account, this.quote, this.contracts[this.quote]);
             return;
           }
-          if (this.washTradeCheck) {
-            const myBestask = this.orderbook.bestask();
-            if (myBestask && ordtype === 1) {
-              const order = this.orders.get(myBestask.orders[0].clientOrderId);
-              if (order && price.gte(order.price)) {
-                this.logger.warn(
-                  `${this.instanceName} 'Wash trade not allowed. New BUY order price ${price.toFixed(
-                    this.quoteDisplayDecimals
-                  )} >= Best Ask ${order.price.toString()}`
-                );
-                return;
-              }
-            }
-          }
+          this.checkWashTrade(side, price);
         } else {
           if (!funds) {
-            this.logger.error(`${this.instanceName} Not enough funds to add SELL order`);
-            utils.printBalances(this.account, this.base, this.contracts[this.base]);
+            //this.logger.error(`${this.instanceName} Not enough funds to add SELL order`);
+            //utils.printBalances(this.account, this.base, this.contracts[this.base]);
             return;
           }
-          if (this.washTradeCheck) {
-            const myBestbid = this.orderbook.bestbid();
-            if (myBestbid && ordtype === 1) {
-              const order = this.orders.get(myBestbid.orders[0].clientOrderId);
-              if (order && price.lte(order.price)) {
-                this.logger.warn(
-                  `${this.instanceName} 'Wash trade not allowed. New SELL order price ${price.toFixed(
-                    this.quoteDisplayDecimals
-                  )} <= Best Bid ${order.price.toString()}`
-                );
-                return;
-              }
-            }
-          }
+          this.checkWashTrade(side, price);
         }
 
         this.orderCount++;
@@ -618,11 +622,11 @@ abstract class AbstractBot {
         const gasest = await this.getAddOrderGasEstimate(clientOrderId, price, quantity, side, ordtype, ordType2);
         // const tcost = await this.getTCost(gasest);
         // this.logger.debug (`${this.instanceName} New order gasEstimate: ${gasest} , tcost  ${tcost.toString()} `);
-        this.logger.debug(
-          `${this.instanceName} SENDING ORDER OrderNbr: ${this.orderCount} ${side === 0 ? "BUY" : "SELL"}::: ${quantity.toFixed(
-            this.baseDisplayDecimals
-          )} ${this.base} @ ${ordtype === 0 ? "MARKET" : price.toFixed(this.quoteDisplayDecimals)} ${this.quote}`
-        );
+        // this.logger.debug(
+        //   `${this.instanceName} SENDING ORDER OrderNbr: ${this.orderCount} ${side === 0 ? "BUY" : "SELL"}::: ${quantity.toFixed(
+        //     this.baseDisplayDecimals
+        //   )} ${this.base} @ ${ordtype === 0 ? "MARKET" : price.toFixed(this.quoteDisplayDecimals)} ${this.quote}`
+        // );
         // this.logger.info (`${utils.parseUnits(price.toFixed(this.quoteDisplayDecimals), this.contracts[this.quote].tokenDetails.evmdecimals)}`);
         // this.logger.info (`${utils.parseUnits(quantity.toFixed(this.baseDisplayDecimals), this.contracts[this.base].tokenDetails.evmdecimals)}`);
 
@@ -651,7 +655,8 @@ abstract class AbstractBot {
           0,
           0,
           0,
-          0
+          0,
+          level
         );
 
         this.addOrderToMap(order);
@@ -689,7 +694,7 @@ abstract class AbstractBot {
                     _log.args.clientOrderId,
                     _log.args.price,
                     _log.args.totalamount,
-                    _log.args.quantity,
+                    quantityToSend,
                     _log.args.side,
                     _log.args.type1,
                     _log.args.type2,
@@ -697,7 +702,8 @@ abstract class AbstractBot {
                     _log.args.quantityfilled,
                     _log.args.totalfee,
                     _log.args.code,
-                    _log
+                    _log,
+                    level
                   );
                 }
               }
@@ -718,7 +724,11 @@ abstract class AbstractBot {
           } Invalid Nonce `
         );
 
-        await this.correctNonce(this.contracts["SubNetProvider"]);
+        setTimeout(async()=>{
+          await this.correctNonce(this.contracts["SubNetProvider"]);
+          this.addOrder(side, qty, px, ordtype, ordType2, level, tries + 1);
+          
+        }, 2000)
       } else {
         const reason = await this.getRevertReason(error);
         if (reason) {
@@ -727,12 +737,16 @@ abstract class AbstractBot {
               price ? price.toString() : "undefined"
             } Revert Reason ${reason}`
           );
+          if (reason == "T-CLOI-01"){
+            setTimeout(()=>{
+              this.addOrder(side, qty, px, ordtype, ordType2, level, tries + 1);
+            }, 2000)
+          }
         } else {
-          this.logger.error(
+          this.logger.warn(
             `${this.instanceName} addOrder error: ${side === 0 ? "BUY" : "SELL"}  ${quantity ? quantity.toString() : "undefined"} @ ${
               price ? price.toString() : "undefined"
-            }`,
-            error
+            } Revert Reason ${reason}`
           );
         }
       }
@@ -745,38 +759,43 @@ abstract class AbstractBot {
     }
     const timestamp = new Date().toISOString();
     if (this.account) {
-      const id = eutils.toUtf8Bytes(`${this.account}${blocknumber}${timestamp}${counter}`);
+      const id = eutils.toUtf8Bytes(`${counter}${timestamp}${this.account}${this.tradePairByte32}${blocknumber}`);
       return eutils.keccak256(id);
     }
     return "";
   }
 
   async getRevertReason(error: any, provider: any = this.contracts["SubNetProvider"]) {
-    let reason;
-    const idx = error.message.indexOf("VM Exception while processing transaction: reverted ");
-    if (idx > -1) {
-      //Hardhat revert reason already in the message
-      return error.message.substring(idx + 72, idx + 81);
-    } else {
-      if (!error.transaction) {
-        this.logger.warn(`${this.instanceName} getRevertReason: error.transaction is undefined`);
+    try{
+      let reason;
+      const idx = error.message.indexOf("VM Exception while processing transaction: reverted ");
+      if (idx > -1) {
+        //Hardhat revert reason already in the message
+        return error.message.substring(idx + 72, idx + 81);
       } else {
-        //https://gist.github.com/gluk64/fdea559472d957f1138ed93bcbc6f78a
-        const code = await provider.provider.call(error.transaction, error.blockNumber);
-        reason = ethers.utils.toUtf8String("0x" + code.substr(138));
-        const i = reason.indexOf("\0"); // delete all null characters after the string
-        if (i > -1) {
-          return reason.substring(0, i);
+        if (!error.transaction) {
+          this.logger.warn(`${this.instanceName} getRevertReason: error.transaction is undefined`);
+        } else {
+          //https://gist.github.com/gluk64/fdea559472d957f1138ed93bcbc6f78a
+          const code = await provider.provider.call(error.transaction, error.blockNumber);
+          reason = ethers.utils.toUtf8String("0x" + code.substr(138));
+          const i = reason.indexOf("\0"); // delete all null characters after the string
+          if (i > -1) {
+            return reason.substring(0, i);
+          }
         }
       }
+      return reason;
+    } catch {
+      return "Unable to find reason for revert";
     }
-    return reason;
+
   }
 
-  async getOptions(provider: any = this.contracts["SubNetProvider"], gasEstimate: BigNumberEthers = BigNumberEthers.from(700000)) {
+  async getOptions(provider: any = this.contracts["SubNetProvider"], gasEstimate: BigNumberEthers = BigNumberEthers.from(1000000)) {
     const gasPx = await this.getGasPrice(provider);
-    const maxFeePerGas = Math.ceil(gasPx.mul(105).div(100).toNumber());
-    const gasLimit = Math.min(gasEstimate.mul(102).div(100).toNumber(), 30000000); // Block Gas Limit 30M
+    const maxFeePerGas = Math.ceil(gasPx.mul(120).div(100).toNumber());
+    const gasLimit = Math.min(gasEstimate.mul(120).div(100).toNumber(), 30000000); // Block Gas Limit 30M
     const optionsWithNonce = { gasLimit, maxFeePerGas, maxPriorityFeePerGas: 1, nonce: 0 };
 
     optionsWithNonce.nonce = provider.nonce++;
@@ -802,16 +821,20 @@ abstract class AbstractBot {
     ordtype: number,
     ordType2: number
   ) {
-    return this.tradePair.estimateGas.addOrder(
-      this.account,
-      clientOrderId,
-      this.tradePairByte32,
-      utils.parseUnits(price.toFixed(this.quoteDisplayDecimals), this.contracts[this.quote].tokenDetails.evmdecimals),
-      utils.parseUnits(quantity.toFixed(this.baseDisplayDecimals), this.contracts[this.base].tokenDetails.evmdecimals),
-      side,
-      ordtype,
-      ordType2
-    );
+    try {
+      return this.tradePair.estimateGas.addOrder(
+        this.account,
+        clientOrderId,
+        this.tradePairByte32,
+        utils.parseUnits(price.toFixed(this.quoteDisplayDecimals), this.contracts[this.quote].tokenDetails.evmdecimals),
+        utils.parseUnits(quantity.toFixed(this.baseDisplayDecimals), this.contracts[this.base].tokenDetails.evmdecimals),
+        side,
+        ordtype,
+        ordType2
+      );
+    } catch {
+      BigNumberEthers.from(1000000)
+    }
   }
 
   async getAddOrderListGasEstimate(
@@ -821,19 +844,36 @@ abstract class AbstractBot {
     sides: number[],
     type2s: number[]
   ) {
-    return this.tradePair.estimateGas.addLimitOrderList(this.tradePairByte32, clientOrderIds, prices, quantities, sides, type2s);
+    try {
+      return this.tradePair.estimateGas.addLimitOrderList(this.tradePairByte32, clientOrderIds, prices, quantities, sides, type2s);
+    } catch {
+      return BigNumberEthers.from(1000000 * clientOrderIds.length);
+    }
   }
 
   async getCancelReplaceOrderGasEstimate(orderId: string, clientOrderId: string, price: BigNumberEthers, quantity: BigNumberEthers) {
-    return this.tradePair.estimateGas.cancelReplaceOrder(orderId, clientOrderId, price, quantity);
+    try {
+      return this.tradePair.estimateGas.cancelReplaceOrder(orderId, clientOrderId, price, quantity);
+    } catch (err){
+      console.log("getCancelReplaceOrderGasEstimate error:",err);
+      return BigNumberEthers.from(1200000);
+    }
   }
 
   async getCancelOrderGasEstimate(order: any) {
-    return this.tradePair.estimateGas.cancelOrder(order.id);
+    try {
+      return this.tradePair.estimateGas.cancelOrder(order.id);
+    } catch {
+      return BigNumberEthers.from(1200000);
+    }
   }
 
   async getCancelAllOrdersGasEstimate(orderIds: string[]) {
-    return this.tradePair.estimateGas.cancelOrderList(orderIds);
+    try {
+      return this.tradePair.estimateGas.cancelOrderList(orderIds);
+    } catch {
+      return BigNumberEthers.from(1000000 * orderIds.length);
+    }
   }
 
   async getGasPriceInGwei(provider: any = this.contracts["SubNetProvider"]) {
@@ -846,17 +886,23 @@ abstract class AbstractBot {
     if (getConfig("NODE_ENV_SETTINGS") === "localdb-hh" || getConfig("NODE_ENV_SETTINGS") === "dev1-hh") {
       gasPx = BigNumberEthers.from(25000000000);
     } else {
-      gasPx = await provider.provider.getGasPrice();
+      try {
+        gasPx = await provider.provider.getGasPrice();
+      } catch (err) {
+        console.log("getGasPrice error:", err)
+        gasPx = BigNumberEthers.from(25000000000);
+      }
     }
     return gasPx;
   }
 
   async correctNonce(provider: any) {
+    // let filePath = path.join(__dirname, './nonce.json');
     try {
       const expectedNonce = await provider.provider.getTransactionCount(this.account);
       provider.nonce = expectedNonce;
     } catch (error) {
-      this.logger.error(`${this.instanceName} 'Error during nonce correction`, error);
+      //this.logger.error(`${this.instanceName} 'Error during nonce correction`, error);
     }
   }
 
@@ -888,7 +934,7 @@ abstract class AbstractBot {
       this.contracts["AVAX"].portfolioTot = utils.formatUnits(bal.total, tokenDetails.evmdecimals);
       this.contracts["AVAX"].portfolioAvail = utils.formatUnits(bal.available, tokenDetails.evmdecimals);
 
-      utils.printBalances(this.account, "AVAX", this.contracts["AVAX"]);
+      //utils.printBalances(this.account, "AVAX", this.contracts["AVAX"]);
 
       // if (this.contracts["AVAX"].mainnetBal <= this.getSettingValue('LOW_AVAX_CHAIN_BALANCE') ) {
       //   let text= "*****************" +  this.instanceName + " LOW AVAX Chain Balance for account :" + this.account ;
@@ -909,23 +955,23 @@ abstract class AbstractBot {
       this.contracts["ALOT"].portfolioTot = utils.formatUnits(bal.total, tokenDetails.evmdecimals);
       this.contracts["ALOT"].portfolioAvail = utils.formatUnits(bal.available, tokenDetails.evmdecimals);
 
-      utils.printBalances(this.account, "ALOT", this.contracts["ALOT"]);
+      //utils.printBalances(this.account, "ALOT", this.contracts["ALOT"]);
 
-      if (this.contracts["ALOT"].subnetBal <= this.getSettingValue("LOW_AVAX_CHAIN_BALANCE")) {
-        let text = "*****************" + this.instanceName + " LOW AVAX Chain Balance for account :" + this.account;
-        text = text + utils.lineBreak + "*****************************************************************************************";
-        text =
-          text +
-          utils.lineBreak +
-          "LOW AVAX Chain Balance, you will not be able pay for gas fees soon unless you replenish your account. Current Balance: " +
-          this.contracts["ALOT"].subnetBal;
-        text =
-          text +
-          utils.lineBreak +
-          "*****************************************************************************************" +
-          utils.lineBreak;
-        this.logger.warn(`${text}`);
-      }
+      // if (this.contracts["ALOT"].subnetBal <= this.getSettingValue("LOW_AVAX_CHAIN_BALANCE")) {
+      //   let text = "*****************" + this.instanceName + " LOW AVAX Chain Balance for account :" + this.account;
+      //   text = text + utils.lineBreak + "*****************************************************************************************";
+      //   text =
+      //     text +
+      //     utils.lineBreak +
+      //     "LOW AVAX Chain Balance, you will not be able pay for gas fees soon unless you replenish your account. Current Balance: " +
+      //     this.contracts["ALOT"].subnetBal;
+      //   text =
+      //     text +
+      //     utils.lineBreak +
+      //     "*****************************************************************************************" +
+      //     utils.lineBreak;
+      //   this.logger.warn(`${text}`);
+      // }
 
       //Chain Base wallet
       if (this.base !== "AVAX" && this.base !== "ALOT") {
@@ -936,8 +982,7 @@ abstract class AbstractBot {
         bal = await portfolio.getBalance(this.account, this.contracts[this.base].inByte32); //baseBal
         this.contracts[this.base].portfolioTot = utils.formatUnits(bal.total, tokenDetails.evmdecimals);
         this.contracts[this.base].portfolioAvail = utils.formatUnits(bal.available, tokenDetails.evmdecimals);
-
-        utils.printBalances(this.account, this.base, this.contracts[this.base]);
+        //utils.printBalances(this.account, this.base, this.contracts[this.base]);
       }
 
       if (this.quote !== "AVAX" && this.quote !== "ALOT") {
@@ -949,10 +994,10 @@ abstract class AbstractBot {
         bal = await portfolio.getBalance(this.account, this.contracts[this.quote].inByte32); //quoteBal
         this.contracts[this.quote].portfolioTot = utils.formatUnits(bal.total, tokenDetails.evmdecimals);
         this.contracts[this.quote].portfolioAvail = utils.formatUnits(bal.available, tokenDetails.evmdecimals);
-        utils.printBalances(this.account, this.quote, this.contracts[this.quote]);
+        //utils.printBalances(this.account, this.quote, this.contracts[this.quote]);
       }
     } catch (error) {
-      this.logger.error(`${this.instanceName} Error during  getBalance`, error);
+      //this.logger.error(`${this.instanceName} Error during  getBalance`, error);
     }
   }
 
@@ -974,7 +1019,8 @@ abstract class AbstractBot {
     blocknbr: any,
     gasUsed: any,
     gasPrice: any,
-    cumulativeGasUsed: any
+    cumulativeGasUsed: any,
+    level: any
   ): any {
     return new Order({
       id,
@@ -998,7 +1044,8 @@ abstract class AbstractBot {
       blocknbr,
       gasUsed,
       gasPrice: utils.formatUnits(gasPrice, 9),
-      cumulativeGasUsed
+      cumulativeGasUsed,
+      level
     });
   }
 
@@ -1022,7 +1069,8 @@ abstract class AbstractBot {
     quantityfilled: any,
     totalfee: any,
     code: any,
-    event: any
+    event: any,
+    level: any
   ) {
     try {
       if (pair === this.tradePairByte32) {
@@ -1046,7 +1094,8 @@ abstract class AbstractBot {
           event.blockNumber,
           tx.gasUsed.toString(),
           tx.effectiveGasPrice ? tx.effectiveGasPrice.toString() : "225",
-          tx.cumulativeGasUsed.toString()
+          tx.cumulativeGasUsed.toString(),
+          level
         );
 
         if (utils.statusMap[order.status] === "NEW" || utils.statusMap[order.status] === "PARTIAL") {
@@ -1056,7 +1105,7 @@ abstract class AbstractBot {
         }
       }
     } catch (error) {
-      this.logger.error(`${this.instanceName} Error during  processOrders`, error);
+      // this.logger.error(`${this.instanceName} Error during  processOrders`, error);
     }
   }
 
@@ -1068,11 +1117,11 @@ abstract class AbstractBot {
     if (existingOrder) {
       if (order.status === existingOrder.status && order.quantityfilled.eq(existingOrder.quantityfilled)) {
         //The same Order event received from the txReceipt & also from the listener. Ignore
-        this.logger.debug(
-          `${this.instanceName} Duplicate Order event: ${order.clientOrderId} ${order.pair} ${
-            order.side === 0 ? "BUY" : "SELL"
-          } ${order.quantity.toString()} @ ${order.price.toString()} ${utils.statusMap[order.status]}`
-        );
+        // this.logger.debug(
+        //   `${this.instanceName} Duplicate Order event: ${order.clientOrderId} ${order.pair} ${
+        //     order.side === 0 ? "BUY" : "SELL"
+        //   } ${order.quantity.toString()} @ ${order.price.toString()} ${utils.statusMap[order.status]}`
+        // );
       } else {
         // There is a change in the order
         if (order.quantityfilled.gt(existingOrder.quantityfilled)) {
@@ -1131,7 +1180,7 @@ abstract class AbstractBot {
     }
     const existingOrder = this.orders.get(order.clientOrderId);
     if (existingOrder) {
-      if (order.quantityfilled.gt(existingOrder.quantityfilled)) {
+      if (order.quantityfilled && order.quantityfilled.gt(existingOrder.quantityfilled)) {
         this.setLastExecution(order, order.quantityfilled.minus(existingOrder.quantityfilled).toNumber(), order.side === 0 ? 1 : 0);
       }
       this.orders.delete(order.clientOrderId);
@@ -1153,24 +1202,33 @@ abstract class AbstractBot {
 
   async cancelOrderList(orderIds: string[] = [], nbrofOrderstoCancel = 30) {
     try {
+      let idsToCancel: string[] = [];
       if (orderIds.length === 0) {
         let i = 0;
         for (const order of this.orders.values()) {
-          orderIds.push(order.id);
+          if (order.id){
+            idsToCancel.push(order.id);
+          }
           i++;
           if (i >= nbrofOrderstoCancel) {
             // More than xx orders in a cancel will run out of gas
             break;
           }
         }
+      } else {
+        for (let i = 0; i < orderIds.length; i++){
+          if (orderIds[i]){
+            idsToCancel.push(orderIds[i]);
+          }
+        }
       }
 
       //const orderIds = Array.from(this.orders.keys());
-      if (orderIds.length > 0) {
+      if (idsToCancel.length > 0) {
         this.orderCount++;
         this.logger.warn(`${this.instanceName} Cancelling all outstanding orders, OrderNbr ${this.orderCount}`);
-        const gasest = await this.getCancelAllOrdersGasEstimate(orderIds);
-        const tx = await this.tradePair.cancelOrderList(orderIds, await this.getOptions(this.contracts["SubNetProvider"], gasest));
+        const gasest = await this.getCancelAllOrdersGasEstimate(idsToCancel);
+        const tx = await this.tradePair.cancelOrderList(idsToCancel, await this.getOptions(this.contracts["SubNetProvider"], gasest));
 
         //const tx = await this.race({ promise:oderCancel , count: this.orderCount} );
         //const orderLog = await tx.wait();
@@ -1197,7 +1255,8 @@ abstract class AbstractBot {
                     _log.args.quantityfilled,
                     _log.args.totalfee,
                     _log.args.code,
-                    _log
+                    _log,
+                    -1
                   );
                 }
               }
@@ -1206,7 +1265,11 @@ abstract class AbstractBot {
         }
       }
     } catch (error) {
-      this.logger.error(`${this.instanceName} Error during  CancelAll`, error);
+      //this.logger.error(`${this.instanceName} Error during  CancelAll`, error);
+      setTimeout(async()=>{
+        await this.correctNonce(this.contracts["SubNetProvider"]);
+        this.cancelOrderList(orderIds);
+      },1000);
     }
   }
 
@@ -1216,15 +1279,18 @@ abstract class AbstractBot {
         await this.cancelOrder(order);
       }
     } catch (error) {
-      this.logger.error(`${this.instanceName} Error during  cancelAllIndividually`, error);
+      //this.logger.error(`${this.instanceName} Error during  cancelAllIndividually`, error);
     }
   }
 
-  async cancelOrder(order: any) {
+  async cancelOrder(order: any, tries:number = 0) {
+    if (tries > 2){
+      console.log("unable to cancel order:",order);
+    }
     try {
       const gasest = await this.getCancelOrderGasEstimate(order);
 
-      this.logger.debug(`${this.instanceName} Cancel order gasEstimate: ${gasest} `); // ${tcost}
+      // this.logger.debug(`${this.instanceName} Cancel order gasEstimate: ${gasest} `); // ${tcost}
       this.orderCount++;
       this.logger.debug(
         `${this.instanceName} canceling OrderNbr: ${this.orderCount} ${
@@ -1258,7 +1324,8 @@ abstract class AbstractBot {
                   _log.args.quantityfilled,
                   _log.args.totalfee,
                   _log.args.code,
-                  _log
+                  _log,
+                  -1
                 );
               }
             }
@@ -1275,84 +1342,71 @@ abstract class AbstractBot {
             this.baseDisplayDecimals
           )} @ ${order.price.toFixed(this.quoteDisplayDecimals)} Invalid Nonce`
         );
-        await this.correctNonce(this.contracts["SubNetProvider"]);
+        setTimeout(async()=>{
+          await this.correctNonce(this.contracts["SubNetProvider"]);
+          this.cancelOrder(order, tries+1);
+        }, 2000)
       } else {
         const reason = await this.getRevertReason(error);
         if (reason) {
-          if (reason === "T-OAEX-01") {
-            this.removeOrderFromMap(order);
-          }
           this.logger.warn(
             `${this.instanceName} Order Cancel error ${order.side === 0 ? "BUY" : "SELL"} ::: ${order.quantity.toFixed(
               this.baseDisplayDecimals
             )} @ ${order.price.toFixed(this.quoteDisplayDecimals)} Revert Reason ${reason}`
           );
+          if (reason === "T-OAEX-01") {
+            this.removeOrderFromMap(order);
+          } else {
+            setTimeout(async()=>{
+              this.cancelOrder(order, tries+1);
+            }, 2000)
+          }
         } else {
-          this.logger.error(
-            `${this.instanceName} Order Cancel error ${order.side === 0 ? "BUY" : "SELL"} ::: ${order.quantity.toFixed(
-              this.baseDisplayDecimals
-            )} @ ${order.price.toFixed(this.quoteDisplayDecimals)}`,
-            error
-          );
+          setTimeout(async()=>{
+            this.cancelOrder(order, tries+1);
+          }, 2000)
         }
       }
       return false;
     }
   }
 
-  async cancelReplaceOrder(order: any, quantity: BigNumber, price: BigNumber) {
+  async cancelReplaceOrder(order: any, price: BigNumber, quantity: BigNumber, tries: number = 0) {
     if (!this.status) {
       return;
     }
+    if (tries > 1){
+      this.retrigger = true;
+      return
+    }
 
     try {
-      if (this.washTradeCheck) {
-        if (order.side === 0) {
-          const myBestask = this.orderbook.bestask();
-          if (myBestask) {
-            const orderBAsk = this.orders.get(myBestask.orders[0].clientOrderId);
-            if (orderBAsk && price.gte(orderBAsk.price)) {
-              this.logger.warn(
-                `${this.instanceName} 'Wash trade in C/R not allowed. New BUY order price ${price.toFixed(
-                  this.quoteDisplayDecimals
-                )} >= Best Ask ${orderBAsk.price.toString()}`
-              );
-              return;
-            }
-          }
-        } else {
-          const myBestbid = this.orderbook.bestbid();
-          if (myBestbid) {
-            const orderBBid = this.orders.get(myBestbid.orders[0].clientOrderId);
-            if (orderBBid && price.lte(orderBBid.price)) {
-              this.logger.warn(
-                `${this.instanceName} 'Wash trade in C/R not allowed. New SELL order price ${price.toFixed(
-                  this.quoteDisplayDecimals
-                )} <= Best Bid ${orderBBid.price.toString()}`
-              );
-              return;
-            }
-          }
-        }
-      }
+      this.checkWashTrade(order.side, price);
 
       const priceToSend = utils.parseUnits(price.toFixed(this.quoteDisplayDecimals), this.contracts[this.quote].tokenDetails.evmdecimals);
       const quantityToSend = utils.parseUnits(
         quantity.toFixed(this.baseDisplayDecimals),
         this.contracts[this.base].tokenDetails.evmdecimals
       );
-      const clientOrderId = await this.getClientOrderId();
+      //get unique counter to generate clientOrderId
+      this.counter ++
+      const clientOrderId = await this.getClientOrderId(0,this.counter);
       // Not using the gasEstimate because it fails with P-AFNE1 when funds are tight but the actual C/R doesn't
 
-      // const gasest= await this.getCancelReplaceOrderGasEstimate(order.id, clientOrderId ,priceToSend, quantityToSend);
-      // this.logger.debug (`${this.instanceName} CancelReplace order gasEstimate: ${gasest} `); // ${tcost}
+      console.log("CANCEL REPLACE: New clientOrderid: ", clientOrderId," PRICE:", price.toNumber(), " QTY: ", quantity.toNumber());
+
+      //const gasest = await this.getCancelReplaceOrderGasEstimate(order.id, clientOrderId ,priceToSend, quantityToSend);
+
+      //console.log("CANCEL REPLACE: GOT GASEST");
+
+      //this.logger.debug (`${this.instanceName} CancelReplace order gasEstimate: ${gasest} `); // ${tcost}
       this.orderCount++;
       this.logger.debug(
         `${this.instanceName} Cancel/Replace OrderNbr: ${this.orderCount} ${
           order.side === 0 ? "BUY" : "SELL"
-        } ::: ${order.quantity.toString()} ${this.base} @ ${order.price.toString()} ${this.quote}`
+        } ::: ${quantity.toString()} ${this.base} @ ${price.toString()} ${this.quote}`
       );
-      const options = await this.getOptions(this.contracts["SubNetProvider"], BigNumberEthers.from(1000000));
+      const options = await this.getOptions(this.contracts["SubNetProvider"], BigNumberEthers.from(1200000));
       const tx = await this.tradePair.cancelReplaceOrder(order.id, clientOrderId, priceToSend, quantityToSend, options);
       const orderLog = await tx.wait();
 
@@ -1369,7 +1423,7 @@ abstract class AbstractBot {
                   _log.args.clientOrderId,
                   _log.args.price,
                   _log.args.totalamount,
-                  _log.args.quantity,
+                  quantityToSend,
                   _log.args.side,
                   _log.args.type1,
                   _log.args.type2,
@@ -1377,7 +1431,8 @@ abstract class AbstractBot {
                   _log.args.quantityfilled,
                   _log.args.totalfee,
                   _log.args.code,
-                  _log
+                  _log,
+                  order.level
                 );
               }
             }
@@ -1390,29 +1445,35 @@ abstract class AbstractBot {
       const idx = error.message.indexOf(nonceErr);
       if (error.code === "NONCE_EXPIRED" || idx > -1) {
         this.logger.warn(
-          `${this.instanceName} Order Cancel/Replace error ${order.side === 0 ? "BUY" : "SELL"} ::: ${order.quantity.toFixed(
+          `${this.instanceName} Order Cancel/Replace error ${order.side === 0 ? "BUY" : "SELL"} ::: ${quantity.toFixed(
             this.baseDisplayDecimals
-          )} @ ${order.price.toFixed(this.quoteDisplayDecimals)} Invalid Nonce`
+          )} @ ${price.toFixed(this.quoteDisplayDecimals)} Invalid Nonce`
         );
-        await this.correctNonce(this.contracts["SubNetProvider"]);
+        setTimeout(async()=>{
+          await this.correctNonce(this.contracts["SubNetProvider"]);
+          this.cancelReplaceOrder(order,price,quantity, tries +1);
+        },2000)
       } else {
         const reason = await this.getRevertReason(error);
         if (reason) {
-          if (reason === "T-OAEX-01") {
+          if (reason == "T-OAEX-01"){
             this.removeOrderFromMap(order);
+          } else if (reason == "T-T2PO-01"){
+            this.retrigger = true;
+          } else {
+            this.logger.warn(
+              `${this.instanceName} Order Cancel/Replace error ${order.side === 0 ? "BUY" : "SELL"} ::: ${quantity.toFixed(
+                this.baseDisplayDecimals
+              )} @ ${price.toFixed(this.quoteDisplayDecimals)} Revert Reason ${reason}`
+            );
+            setTimeout(async()=>{
+              this.cancelReplaceOrder(order,price,quantity, tries +1);
+            },2000)
           }
-          this.logger.warn(
-            `${this.instanceName} Order Cancel/Replace error ${order.side === 0 ? "BUY" : "SELL"} ::: ${order.quantity.toFixed(
-              this.baseDisplayDecimals
-            )} @ ${order.price.toFixed(this.quoteDisplayDecimals)} Revert Reason ${reason}`
-          );
         } else {
-          this.logger.error(
-            `${this.instanceName} Order Cancel/Replace error ${order.side === 0 ? "BUY" : "SELL"} ::: ${order.quantity.toFixed(
-              this.baseDisplayDecimals
-            )} @ ${order.price.toFixed(this.quoteDisplayDecimals)}`,
-            error
-          );
+          setTimeout(async()=>{
+            this.cancelReplaceOrder(order,price,quantity, tries +1);
+          },2000)
         }
       }
       return false;
@@ -1426,37 +1487,93 @@ abstract class AbstractBot {
         .data;
       return orders.rows;
     } catch (error: any) {
+      // this.logger.error(`${this.instanceName} ${error}`);
+    }
+  }
+
+  async getFilledOrders(startDate:any = new Date(Date.now()-86400000).toISOString(),endDate:any = new Date(Date.now()).toISOString()) {
+    
+    console.log("START DATE:",startDate);
+    console.log("END DATE:",endDate);
+    let rows: any = [];
+    let tries = 0;
+    try {
+      let keepRunning = true;
+      while (keepRunning){
+        let newRows = await this.getRecords(startDate,endDate);
+        if (tries != 0 && newRows[newRows.length-1].update_ts == rows[rows.length-1].update_ts){
+          return rows;
+        } else {
+          if (tries > 0 && newRows[0].update_ts == rows[rows.length-1].update_ts){
+            newRows.shift();
+          }
+          tries ++
+          rows = rows.concat(newRows);
+          endDate = rows[rows.length-1].update_ts
+        }
+      }
+    } catch (error: any) {
+      this.logger.error(`${this.instanceName} ${error}`);
+    }
+  }
+
+  async getRecords(startDate:string,endDate:string){
+    try {
+      let recordsPerRequest = 20;
+      let totalRecords = 200;
+      let i = 1;
+      let promises:any = [];
+      let rows: any = [];
+      let record = await axios.get(signedApiUrl + "orders?pair=" + this.tradePairIdentifier + "&category=1" + "&periodfrom=" + startDate + "&periodto="+endDate + "&itemsperpage=20"+"&pageno="+i, this.axiosConfig);
+      totalRecords = record.data.rows[0].nbrof_rows;
+      console.log("total Records:",totalRecords);
+      while(i <= Math.ceil(totalRecords/20)){
+        await new Promise(resolve => setTimeout(resolve, 100));
+        promises.push(axios.get(signedApiUrl + "orders?pair=" + this.tradePairIdentifier + "&category=1" + "&periodfrom=" + startDate + "&periodto="+endDate + "&itemsperpage=20"+"&pageno="+i, this.axiosConfig));
+        i++
+      }
+      const records = await Promise.all(promises);
+      records.forEach((e)=>{
+        rows = rows.concat(e.data.rows);
+      })
+
+      return rows;
+    } catch (error: any) {
       this.logger.error(`${this.instanceName} ${error}`);
     }
   }
 
   async processOpenOrders() {
-    this.logger.info(`${this.instanceName} Recovering open orders:`);
+    //this.logger.info(`${this.instanceName} Recovering open orders:`);
     const orders = await this.getOpenOrders();
-    for (const order of orders) {
-      const orderfromDb = new Order({
-        id: order.id,
-        clientOrderId: order.clientordid,
-        traderaddress: order.traderaddress,
-        quantity: new BigNumber(order.quantity),
-        pair: order.pair,
-        price: new BigNumber(order.price),
-        side: parseInt(order.side),
-        type: parseInt(order.type),
-        type2: parseInt(order.type2),
-        status: parseInt(order.status),
-        quantityfilled: new BigNumber(order.quantityfilled),
-        totalamount: new BigNumber(order.totalamount),
-        totalfee: new BigNumber(order.totalfee),
-        gasUsed: 0,
-        gasPrice: 0,
-        cumulativeGasUsed: 0
-      });
-
-      this.addOrderToMap(orderfromDb);
+    if (orders){
+      for (const order of orders) {
+        const orderfromDb = new Order({
+          id: order.id,
+          clientOrderId: order.clientordid,
+          traderaddress: order.traderaddress,
+          quantity: new BigNumber(order.quantity),
+          pair: order.pair,
+          price: new BigNumber(order.price),
+          side: parseInt(order.side),
+          type: parseInt(order.type),
+          type2: parseInt(order.type2),
+          status: parseInt(order.status),
+          quantityfilled: new BigNumber(order.quantityfilled),
+          totalamount: new BigNumber(order.totalamount),
+          totalfee: new BigNumber(order.totalfee),
+          gasUsed: 0,
+          gasPrice: 0,
+          cumulativeGasUsed: 0
+        });
+  
+        this.addOrderToMap(orderfromDb);
+      }
     }
+
     await this.checkOrdersInChain();
-    this.logger.info(`${this.instanceName} open orders recovered:`);
+    //this.logger.info(`${this.instanceName} open orders recovered:`);
+    return true;
   }
 
   // Check the satus of the outstanding orders and remove if filled/canceled
@@ -1465,21 +1582,25 @@ abstract class AbstractBot {
     const promises: any = [];
     const orders: any = [];
     for (const order of this.orders.values()) {
-      orders.push(order);
-      promises.push(this.tradePair.getOrder(order.id));
+      if (order.id){
+        orders.push(order);
+        promises.push(this.tradePair.getOrder(order.id));
+      } else {
+        this.removeOrderFromMap(order);
+      }
     }
     try {
       const results = await Promise.all(promises);
       for (let i = 0; i < results.length; i++) {
         this.checkOrderInChain(orders[i], results[i]);
-        this.logger.debug(
-          `${this.instanceName} checkOrdersInChain: ${orders[i].side === 0 ? "BUY" : "SELL"} ${orders[i].quantity.toString()} ${
-            this.base
-          } @ ${orders[i].price.toString()} ${utils.statusMap[orders[i].status]}`
-        );
+        // this.logger.debug(
+        //   `${this.instanceName} checkOrdersInChain: ${orders[i].side === 0 ? "BUY" : "SELL"} ${orders[i].quantity.toString()} ${
+        //     this.base
+        //   } @ ${orders[i].price.toString()} ${utils.statusMap[orders[i].status]}`
+        // );
       }
     } catch (error) {
-      throw new Error("Could not fetch order status");
+      console.log("ERROR CHECKING ORDERS ON CHAIN:", error);
     }
   }
 
@@ -1503,7 +1624,8 @@ abstract class AbstractBot {
         "",
         "0",
         "0",
-        "0"
+        "0",
+        orderinMemory.level
       ); //tx, blocknbr , gasUsed, gasPrice, cumulativeGasUsed) ;
 
       const ordstatus = orderInChain.status;
@@ -1533,7 +1655,8 @@ abstract class AbstractBot {
         return true;
       }
     } catch (error: any) {
-      this.logger.error(`${this.instanceName} Error during checkOrderInChain ${orderinMemory.clientOrderId}`, error);
+      //this.logger.error(`${this.instanceName} Error during checkOrderInChain ${orderinMemory.clientOrderId}`, error);
+      console.log("error during checkorderinchain", orderinMemory.clientOrderId, error)
       return false;
     }
   }
@@ -1740,13 +1863,13 @@ abstract class AbstractBot {
         if (alot.subnetBal < 10) {
           deposit_amount = (10 - alot.subnetBal).toFixed(5);
           if (alot.portfolioAvail > 10) {
-            await this.withdrawNative(this.contracts["Portfoliosub"].deployedContract, deposit_amount, alot.tokenDetails.evmdecimals);
+            await this.depositNative(this.contracts["Portfoliosub"].deployedContract, deposit_amount, alot.tokenDetails.evmdecimals);
           } else {
             await this.depositToken(alot.deployedContract, alot.inByte32, alot.tokenDetails.evmdecimals, deposit_amount);
           }
         }
       }
-      if (this.portfolioRebalanceAtStart === "Y") {
+      if (this.portfolioRebalanceAtStart === true) {
         //BASE
         if (
           this.contracts[this.base].portfolioTot < baseCapital * (1 - this.rebalancePct) ||
@@ -1876,12 +1999,70 @@ abstract class AbstractBot {
     }
   }
 
+  async checkWashTrade(side: number, price: BigNumber) {
+    if (this.washTradeCheck) {
+      if (side === 0){
+        const myBestask = this.orderbook.bestask();
+          if (myBestask) {
+            const orderBAsk = this.orders.get(myBestask.orders[0].clientOrderId);
+            if (orderBAsk && price.gte(orderBAsk.price)) {
+              this.logger.warn(
+                `${this.instanceName} 'Wash trade in C/R not allowed. New BUY order price ${price.toFixed(
+                  this.quoteDisplayDecimals
+                )} >= Best Ask ${orderBAsk.price.toString()}`
+              );
+              return;
+            }
+          }
+      } else if (side === 1){
+        const myBestbid = this.orderbook.bestbid();
+        if (myBestbid) {
+          const order = this.orders.get(myBestbid.orders[0].clientOrderId);
+          if (order && price.lte(order.price)) {
+            this.logger.warn(
+              `${this.instanceName} 'Wash trade not allowed. New SELL order price ${price.toFixed(
+                this.quoteDisplayDecimals
+              )} <= Best Bid ${order.price.toString()}`
+            );
+            return;
+          }
+        }
+      }
+      
+    }
+  }
+
+  async getBestOrders(){
+    try {
+    let currentBestBidResponse = await this.orderBooks.getTopOfTheBook(this.orderBookID);
+    let currentBestAskResponse = await this.orderBooks.getTopOfTheBook(this.orderBookID1);
+    let currentBestBid = new BigNumber(currentBestBidResponse.price.toString())//.dp(this.quoteDisplayDecimals);
+    let currentBestAsk = new BigNumber(currentBestAskResponse.price.toString())//.dp(this.quoteDisplayDecimals);
+    if (this.tradePairIdentifier=="sAVAX/AVAX"){
+      this.currentBestBid = currentBestBid.div("1000000000000000000").toNumber()
+      this.currentBestAsk = currentBestAsk.div("1000000000000000000").toNumber()
+    } else {
+      this.currentBestBid = currentBestBid.div(1000000).toNumber()
+      this.currentBestAsk = currentBestAsk.div(1000000).toNumber()
+    }
+
+    } catch (error) {
+      console.log("error getting best orders:",error);
+    }
+    console.log(this.currentBestAsk);
+    console.log(this.currentBestBid);
+
+    return [this.currentBestBid,this.currentBestAsk];
+  }
+
   async cleanUpAndExit() {
     if (!this.cleanupCalled) {
+      const timeout = 15; //Min 6 seconds because this.stop calls cancelall and waits for 5 seconds
       this.logger.warn(`${this.instanceName} === Process Exit Called === `);
       this.cleanupCalled = true;
+      this.logger.warn(`${this.instanceName} === STOPPING === `);
       this.stop();
-      const timeout = Math.max(7, this.getSettingValue("CLEAR_TIMOUT_SECONDS") || 10); //Min 6 seconds because this.stop calls cancelall and waits for 5 seconds
+
       setTimeout(() => {
         this.logger.warn(`${this.instanceName} === SHUTTING DOWN === `);
         process.exit(0);

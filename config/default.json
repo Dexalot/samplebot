@@ -1,3 +1,5 @@
 {
-   
+    "API_URL" : "https://api.dexalot.com/",
+    "DOMAIN_LINK" : "https://api.dexalot.com/",
+    "ORIGIN_LINK": "https://api.dexalot.com/"
 }
