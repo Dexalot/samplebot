@@ -64,6 +64,8 @@ class MarketMakerBot extends AbstractBot {
       // await this.getBestOrders();
 
       this.interval = 10000; //Min 8 seconds
+      //Cancel any remaining orders
+      await this.cancelOrderList([], 100);
 
       // PNL  TO KEEP TRACK OF PNL , FEE & TCOST  etc
       //this.PNL = new PNL(getConfig('NODE_ENV_SETTINGS'), this.instanceName, this.base, this.quote, this.config, this.account);
@@ -80,11 +82,6 @@ class MarketMakerBot extends AbstractBot {
       if (this.portfolioRebalanceAtStart){
         await utils.sleep(30000);
       }
-      
-      this.logger.debug(`${JSON.stringify(this.getOrderBook())}`);
-
-      //Cancel any remaining orders
-      await this.cancelOrderList([], 100);
 
       if (this.baseUsd && this.quoteUsd){
         // ------------ Create and Send Initial Order List ------------ //
@@ -98,10 +95,15 @@ class MarketMakerBot extends AbstractBot {
 
         // ------------ Begin Order Updater ------------ //
 
-        this.orderUpdater = setTimeout(()=>{
-          this.lastMarketPrice = this.marketPrice;
-          this.updateOrders();
-        }, this.interval);
+        while (true){
+          await this.getNewMarketPrice();
+          let placedOrders: boolean = await this.updateOrders();
+          if (placedOrders){
+            await new Promise(resolve => setTimeout(resolve, this.interval));
+          } else {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        }
       } else {
         console.log("MISSING PRICE DATA - baseUsd:",this.baseUsd, " quoteUsd: ",this.quoteUsd, "Wait 10 seconds then try again");
         await utils.sleep(10000);
@@ -114,10 +116,7 @@ class MarketMakerBot extends AbstractBot {
   }
 
   // this is the meat and potatoes of the bot. It will repeatedly call itself to refresh orders if the price is outside the refreshOrderTolerance spread, or too much time has passed since the last update.
-  async updateOrders() {
-    if (this.orderUpdater != undefined) {
-      clearTimeout(this.orderUpdater);
-    }
+  async updateOrders():Promise<boolean> {
 
     try {
       if (this.status && (this.retrigger || (Date.now() - this.lastUpdate)/1000 > 600 || this.marketPrice.toNumber()<this.lastMarketPrice.toNumber()*(1-parseFloat(this.refreshOrderTolerance)) || this.marketPrice.toNumber()>this.lastMarketPrice.toNumber()*(1+parseFloat(this.refreshOrderTolerance)))){
@@ -257,20 +256,15 @@ class MarketMakerBot extends AbstractBot {
           this.lastMarketPrice = this.marketPrice;
           this.retrigger = false;
         }
-          
-        }
+        return true
+      } else {
+        return false;
+      }
     } catch (error) {
       this.logger.error(`${this.instanceName} Error in UpdateOrders`, error);
-      this.cleanUpAndExit();
-    } finally {
-      //Update orders again after interval
-      this.orderUpdater = setTimeout(async ()=>{
-        if (this.status){
-          await Promise.all([this.getNewMarketPrice()]);
-          this.timer = 2000;
-          this.updateOrders();
-        }
-      }, this.timer);
+      await this.cleanUpAndExit();
+      this.status = false;
+      return false
     }
   }
 
@@ -492,6 +486,9 @@ class MarketMakerBot extends AbstractBot {
       if (this.base == "sAVAX"){
         this.quoteUsd = prices[this.quote+'-USD']; 
         this.baseUsd = prices['sAVAX-AVAX'] * this.quoteUsd; 
+      } else if (this.base == "COQ") {
+        this.quoteUsd = prices[this.quote+'-USD']; 
+        this.baseUsd = prices['COQ-AVAX'] * this.quoteUsd; 
       } else {
         this.baseUsd = prices[this.base+'-USD']; 
         this.quoteUsd = prices[this.quote+'-USD']; 
