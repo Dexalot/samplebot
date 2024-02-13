@@ -30,7 +30,6 @@ abstract class AbstractBot {
   protected initialized = false;
 
   protected account = "0x";
-  protected balanceId: number | undefined;
   protected orderCount = 0;
   protected config: any;
   protected pairObject: any | undefined;
@@ -323,7 +322,6 @@ abstract class AbstractBot {
   async start() {
     if (this.initialized && !this.status) {
       this.status = true;
-      this.balanceId = undefined;
       const balancesRefreshed = await this.doInitialFunding();
       this.saveBalancestoDb(balancesRefreshed);
 
