@@ -294,7 +294,7 @@ class MarketMakerBot extends AbstractBot {
     let totalFunds = parseFloat(this.contracts[this.base].portfolioTot)*this.marketPrice.toNumber()+parseFloat(this.contracts[this.quote].portfolioTot)
     let multiple = ((parseFloat(this.contracts[this.base].portfolioTot)*this.marketPrice.toNumber()/totalFunds)-.5)*20;
     if (multiple > 0 && this.defensiveSkew){
-      defensiveSkew = parseFloat((this.defensiveSkew * multiple).toFixed(2));
+      defensiveSkew = parseFloat((this.defensiveSkew * multiple).toFixed(8));
     }
     let bidSpread = this.bidSpread + defensiveSkew + slip;
     console.log("Bid Spread:",bidSpread);
@@ -310,7 +310,7 @@ class MarketMakerBot extends AbstractBot {
     let totalFunds = parseFloat(this.contracts[this.base].portfolioTot)*this.marketPrice.toNumber()+parseFloat(this.contracts[this.quote].portfolioTot)
     let multiple = ((parseFloat(this.contracts[this.base].portfolioTot)*this.marketPrice.toNumber()/totalFunds)-.5)*-20;
     if (multiple > 0 && this.defensiveSkew){
-      defensiveSkew = parseFloat((this.defensiveSkew * multiple).toFixed(2));
+      defensiveSkew = parseFloat((this.defensiveSkew * multiple).toFixed(8));
     }
     let askSpread = this.askSpread + defensiveSkew + slip;
     console.log("Ask Spread:",askSpread);
