@@ -50,7 +50,7 @@ Paste this into your .env.fuji with your private key and address. PLEASE USE A T
             "tolerance": "0.75"
             }
         }
-    },
+    }
 }
 ```
 
