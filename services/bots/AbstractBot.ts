@@ -1198,7 +1198,10 @@ abstract class AbstractBot {
     }
   }
 
-  async cancelOrderList(orderIds: string[] = [], nbrofOrderstoCancel = 30) {
+  async cancelOrderList(orderIds: string[] = [], tries = 0) {
+    if (tries > 2){
+      return
+    }
     try {
       let idsToCancel: string[] = [];
       if (orderIds.length === 0) {
@@ -1208,10 +1211,6 @@ abstract class AbstractBot {
             idsToCancel.push(order.id);
           }
           i++;
-          if (i >= nbrofOrderstoCancel) {
-            // More than xx orders in a cancel will run out of gas
-            break;
-          }
         }
       } else {
         for (let i = 0; i < orderIds.length; i++){
@@ -1266,7 +1265,7 @@ abstract class AbstractBot {
       //this.logger.error(`${this.instanceName} Error during  CancelAll`, error);
       setTimeout(async()=>{
         await this.correctNonce(this.contracts["SubNetProvider"]);
-        this.cancelOrderList(orderIds);
+        this.cancelOrderList(orderIds,tries + 1);
       },1000);
     }
   }
