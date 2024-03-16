@@ -30,6 +30,8 @@ class MarketMakerBot extends AbstractBot {
   protected useRetrigger = false;
   protected useIndependentLevels: boolean = false;
   protected independentLevels: any;
+  protected addVolSpread: boolean = false;
+  protected volSpread = 0;
 
   constructor(botId: number, pairStr: string, privateKey: string) {
     super(botId, pairStr, privateKey);
@@ -50,6 +52,7 @@ class MarketMakerBot extends AbstractBot {
     this.useRetrigger = this.config.useRetrigger
     this.useIndependentLevels = this.config.useIndependentLevels
     this.independentLevels = this.config.independentLevels;
+    this.addVolSpread = this.config.addVolSpread;
     console.log('this.independentLevels',this.independentLevels)
   }
 
@@ -458,7 +461,7 @@ class MarketMakerBot extends AbstractBot {
     if (multiple > 0 && this.defensiveSkew){
       defensiveSkew = parseFloat((this.defensiveSkew * multiple).toFixed(8));
     }
-    let bidSpread = this.bidSpread + defensiveSkew + slip;
+    let bidSpread = this.bidSpread + defensiveSkew + slip + (this.volSpread/2);
     console.log("Bid Spread:",bidSpread);
     return bidSpread;
   }
@@ -474,13 +477,16 @@ class MarketMakerBot extends AbstractBot {
     if (multiple > 0 && this.defensiveSkew){
       defensiveSkew = parseFloat((this.defensiveSkew * multiple).toFixed(8));
     }
-    let askSpread = this.askSpread + defensiveSkew + slip;
+    let askSpread = this.askSpread + defensiveSkew + slip + (this.volSpread/2);
     console.log("Ask Spread:",askSpread);
     return askSpread;
   }
 
   // Update the marketPrice from price feed bot
   async getNewMarketPrice() {
+    if (this.addVolSpread){
+      this.getVolSpread();
+    }
     try {
       let response = await axios.get('http://localhost:3000/prices');
       let prices = response.data;
@@ -506,6 +512,16 @@ class MarketMakerBot extends AbstractBot {
       this.logger.error(`${this.instanceName} Error during getNewMarketPrice`, error);
     }
     return this.marketPrice;
+  }
+  async getVolSpread(){
+    try {
+      let response = await axios.get('http://localhost:3000/spreads');
+      let spreads = response.data;
+      this.volSpread = spreads[this.base + '-USD']
+      console.log("VOLSPREAD:", this.volSpread)
+    } catch {
+      console.log("error during getVolSpreads")
+    }
   }
 
   refreshLevel(level:number,isBid : boolean): boolean {
