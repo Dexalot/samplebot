@@ -134,7 +134,9 @@ class MarketMakerBot extends AbstractBot {
         
         // updates balances, gets best bids and asks, and corrects the nonce
         await Promise.all([this.getBalances(),this.getBestOrders(),this.correctNonce(this.contracts["SubNetProvider"]),this.processOpenOrders()]);
-        this.lastChange = Math.abs(this.marketPrice.toNumber()-this.lastMarketPrice.toNumber())/this.marketPrice.toNumber();
+        if (this.lastMarketPrice.toNumber() != 0){
+          this.lastChange = Math.abs(this.marketPrice.toNumber()-this.lastMarketPrice.toNumber())/this.marketPrice.toNumber();
+        }
         
         let startingBidPriceBG = this.marketPrice.multipliedBy(1-this.getBidSpread()).dp(this.quoteDisplayDecimals, BigNumber.ROUND_DOWN);
         let startingBidPrice = startingBidPriceBG.toNumber();
