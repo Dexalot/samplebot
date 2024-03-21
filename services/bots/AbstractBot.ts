@@ -356,7 +356,7 @@ abstract class AbstractBot {
     }
     setTimeout(async ()=> {
       await this.processOpenOrders();
-      this.cancelOrderList([], 100)
+      this.cancelOrderList([])
       .then(() => {
         this.logger.warn(`${this.instanceName} Waiting 5 seconds before removing order listeners"...`);
         setTimeout(async () => {

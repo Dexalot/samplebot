@@ -68,7 +68,7 @@ class MarketMakerBot extends AbstractBot {
 
       this.interval = 10000; //Min 8 seconds
       //Cancel any remaining orders
-      await this.cancelOrderList([], 100);
+      await this.cancelOrderList([]);
 
       // PNL  TO KEEP TRACK OF PNL , FEE & TCOST  etc
       //this.PNL = new PNL(getConfig('NODE_ENV_SETTINGS'), this.instanceName, this.base, this.quote, this.config, this.account);
