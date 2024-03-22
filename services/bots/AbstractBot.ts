@@ -2035,7 +2035,7 @@ abstract class AbstractBot {
     let currentBestAskResponse = await this.orderBooks.getTopOfTheBook(this.orderBookID1);
     let currentBestBid = new BigNumber(currentBestBidResponse.price.toString())//.dp(this.quoteDisplayDecimals);
     let currentBestAsk = new BigNumber(currentBestAskResponse.price.toString())//.dp(this.quoteDisplayDecimals);
-    if (this.tradePairIdentifier=="sAVAX/AVAX" || this.tradePairIdentifier=="COQ/AVAX"){
+    if (this.quote == "AVAX"){
       this.currentBestBid = currentBestBid.div("1000000000000000000").toNumber()
       this.currentBestAsk = currentBestAsk.div("1000000000000000000").toNumber()
     } else {

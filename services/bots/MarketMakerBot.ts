@@ -492,12 +492,9 @@ class MarketMakerBot extends AbstractBot {
       let prices = response.data;
       
 
-      if (this.base == "sAVAX"){
+      if (this.base == "sAVAX" || this.base == "COQ" || this.base == "NOCHILL" || this.base == "GEC" || this.base == "KIMBO" || this.base == "TECH" || this.base == "MEOW") {
         this.quoteUsd = prices[this.quote+'-USD']; 
-        this.baseUsd = prices['sAVAX-AVAX'] * this.quoteUsd; 
-      } else if (this.base == "COQ") {
-        this.quoteUsd = prices[this.quote+'-USD']; 
-        this.baseUsd = prices['COQ-AVAX'] * this.quoteUsd; 
+        this.baseUsd = prices[this.base+'-AVAX'] * this.quoteUsd; 
       } else {
         this.baseUsd = prices[this.base+'-USD']; 
         this.quoteUsd = prices[this.quote+'-USD']; 
